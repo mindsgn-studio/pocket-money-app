@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := build
+
 GO ?= go
 GOPATH ?= $(shell $(GO) env GOPATH)
 GOROOT ?= $(shell $(GO) env GOROOT)
@@ -118,6 +120,8 @@ fmt:
 vet:
 	@echo "Running go vet..."
 	@$(GO) vet ./...
+
+build: android ios
 
 help:
 	@echo "Available targets:"
