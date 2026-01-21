@@ -1,7 +1,7 @@
-package native_wallet
+package walletcore
 
 type NativeWallet struct{}
 
 func (w *NativeWallet) HelloWorld() string {
-	return "Hello World from GO"
+	return "Hello World from GO!"
 }

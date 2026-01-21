@@ -6,8 +6,8 @@ GOBIND ?= $(GOPATH)/bin/gobind
 
 MOBILE_PKG_SRC = $(GOPATH)/src/golang.org/x/mobile
 
-ANDROID_OUTPUT = ../mobile-app/android/app/libs/gobridge.aar
-IOS_OUTPUT = ../mobile-app/ios/Frameworks/Gobridge.xcframework
+ANDROID_OUTPUT = ../app/android/app/libs/walletcore.aar
+IOS_OUTPUT = ../app/ios/Frameworks/Walletcore.xcframework
 
 ANDROID_API = 23
 
@@ -130,5 +130,5 @@ help:
 	@echo "  make test         - Run Go tests"
 	@echo "  make fmt          - Format Go code"
 	@echo "  make vet          - Run go vet"
-echo "  make fmt          - Format Go code"
+	@echo "  make fmt          - Format Go code"
 	@echo "  make vet          - Run go vet"
