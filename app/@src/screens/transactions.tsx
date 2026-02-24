@@ -4,7 +4,7 @@ import {
   RefreshControl, Linking,
 } from 'react-native';
 import { Screen } from '../../app';
-import { useWallet } from '../../hooks/wallet';
+import { useWallet } from '../hooks/wallet';
 import { Transfer } from '../../services';
 import { COLORS } from '../constants';
 

@@ -4,8 +4,8 @@ import {
   ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Screen } from '../../app';
-import { useSend } from '../../hooks/send';
-import { useWallet } from '../../hooks/wallet';
+import { useSend } from '../hooks/send';
+import { useWallet } from '../hooks/wallet';
 import { COLORS } from '../constants';
 
 interface Props { navigate: (s: Screen) => void; }

@@ -4,7 +4,7 @@ import {
   RefreshControl, Animated, Clipboard,
 } from 'react-native';
 import { Screen } from '../../app';
-import { useWallet } from '../../hooks/wallet';
+import { useWallet } from '../hooks/wallet';
 import { COLORS } from '../constants';
 
 interface Props { navigate: (s: Screen) => void; }
