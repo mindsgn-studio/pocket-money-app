@@ -121,7 +121,7 @@ vet:
 	@echo "Running go vet..."
 	@$(GO) vet ./...
 
-build: android ios
+build: test android ios
 
 help:
 	@echo "Available targets:"
