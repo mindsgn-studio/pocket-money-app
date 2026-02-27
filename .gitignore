@@ -10,6 +10,7 @@ ios
 docs
 expo-env.d.ts
 android
+app
 
 # dependencies
 node_modules/
