@@ -23,9 +23,10 @@ Methods return simple strings/JSON payloads and errors to keep gomobile bindings
 
 ## Expo module mapping
 
-The Expo bridge in `app/modules/core` currently exposes these `WalletCore` methods:
+The Expo bridge in `app/modules/pocket-module` currently exposes these `WalletCore` methods:
 
 - `Init` as `initWallet(dataDir, password, masterKeyB64, kdfSaltB64)`
+- `Init` as `initWalletSecure(dataDir, password)`
 - `Close` as `closeWallet()`
 - `CreateEthereumWallet` as `createEthereumWallet(name)`
 - `GetBalance` as `getBalance(network)`
@@ -34,7 +35,8 @@ The Expo bridge in `app/modules/core` currently exposes these `WalletCore` metho
 `SendMoneyTo` is not exposed yet in the Expo module because the underlying behavior is still a stub.
 
 Bridge contract notes:
-- `masterKeyB64` and `kdfSaltB64` are base64 strings provided by iOS Keychain/Android Keystore backed storage.
+- `initWalletSecure` generates and persists key material natively in iOS Keychain and Android Keystore-backed EncryptedSharedPreferences.
+- `initWallet` remains available for explicit/manual key material initialization in migration and testing scenarios.
 - `getBalance` and `listAccounts` are returned as raw JSON strings to keep native bridge logic minimal.
 
 ## Security model

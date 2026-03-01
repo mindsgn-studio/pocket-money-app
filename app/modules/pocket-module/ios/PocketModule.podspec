@@ -11,7 +11,8 @@ Pod::Spec.new do |s|
   s.source = { :path => '.' }
   s.static_framework = true
   s.source_files = [
-    'PocketModule.swift'
+    'PocketModule.swift',
+    'SecureKeyStore.swift'
   ]
   s.vendored_frameworks = 'PocketCore.xcframework'  
   s.pod_target_xcconfig = {
