@@ -23,9 +23,9 @@ package-lock.json
 frontend
 build
 _app/*
-app
 .DS_store
-
+app/android
+app/ios
 node_modules
 dist
 bundle
