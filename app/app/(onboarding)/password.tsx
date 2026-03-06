@@ -10,14 +10,22 @@ import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import PocketCore from '@/modules/pocket-module';
 import { Directory, Paths } from 'expo-file-system';
-// import useWallet from '@/@src/store/wallet';
+import useWallet, { AAReadiness, WalletTransaction } from '@/@src/store/wallet';
 
 const PIN_LENGTH = 5;
 const DEFAULT_NETWORK: 'ethereum-mainnet' | 'ethereum-sepolia' = process.env.EXPO_PUBLIC_APP_ENV === 'production' ? 'ethereum-mainnet' : 'ethereum-sepolia';
 
 export default function PasswordScreen() {
-  // const { setBalance, setTransactions } = useWallet();
+  const {
+    setWalletAddress,
+    setSmartAccountAddress,
+    setBalancesJson,
+    setTransactions,
+    setAAReadiness,
+    clearWalletState,
+  } = useWallet();
   const [confirmationPin, setConfirmationPin] = useState<string[]>([]);
+  const [status, setStatus] = useState('');
   const onPressNumber = async (value: string) => {
     if (confirmationPin.length >= PIN_LENGTH) return;
 
@@ -35,19 +43,33 @@ export default function PasswordScreen() {
   const getData = async(password: string) => {
     try{
       const dataDir = new Directory(Paths.document);
+      setStatus('Unlocking wallet...');
       await PocketCore.initWalletSecure(dataDir.uri, password)
-      await PocketCore.openOrCreateWallet('Main Wallet');
-      await PocketCore.createSmartContractAccount(DEFAULT_NETWORK);
+      const walletAddress = await PocketCore.openOrCreateWallet('Main Wallet');
+      setWalletAddress(walletAddress);
+
+      const accountRaw = await PocketCore.createSmartContractAccount(DEFAULT_NETWORK);
+      const accountPayload = JSON.parse(accountRaw) as { accountAddress?: string };
+      setSmartAccountAddress(accountPayload.accountAddress || '');
+
+      const readinessRaw = await PocketCore.getAAReadiness(DEFAULT_NETWORK);
+      const readiness = JSON.parse(readinessRaw) as AAReadiness;
+      setAAReadiness(readiness);
       
       const accountSummary = await PocketCore.getAccountSnapshot(DEFAULT_NETWORK);
-      const data = JSON.parse(accountSummary);
-      // setBalance(data.balance);
+      setBalancesJson(accountSummary);
 
       const txResponse = await PocketCore.listAllTransactions(DEFAULT_NETWORK, 20, 0);
-      const transactions = JSON.parse(txResponse);
-      // setTransactions(transactions);
-      // router.replace("(home)");
+      const transactions = JSON.parse(txResponse) as WalletTransaction[];
+      setTransactions(Array.isArray(transactions) ? transactions : []);
+
+      if (!readiness.sponsorshipReady) {
+        setStatus('Unlocked. Sponsored mode is currently unavailable.');
+      }
+
+      router.replace("/(home)");
     } catch(error) {
+      clearWalletState();
       router.replace({
         pathname: "/error",
         params: {
@@ -64,6 +86,7 @@ export default function PasswordScreen() {
       if (password === confirmationPin.join('')) {
         getData(confirmationPin.join(''));
       } else {
+        setStatus('Incorrect PIN. Try again.');
         setConfirmationPin([]);
       }
     }
@@ -128,6 +151,8 @@ export default function PasswordScreen() {
           <Text style={styles.keyText}>⌫</Text>
         </Pressable>
       </View>
+
+      {status ? <Text style={styles.status}>{status}</Text> : null}
     </View>
   );
 }
@@ -193,5 +218,12 @@ const styles = StyleSheet.create({
   },
   keyPlaceholder: {
     width: '30%',
+  },
+  status: {
+    marginTop: 24,
+    color: '#B5B5BE',
+    fontSize: 12,
+    width: '80%',
+    textAlign: 'center',
   },
 });

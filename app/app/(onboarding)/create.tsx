@@ -31,7 +31,7 @@ export default function PinScreen() {
   useEffect(() => {
     if (pin.length === PIN_LENGTH) {
       router.replace({
-        pathname: '/confirm',
+        pathname: '/(onboarding)/confirm',
         params: {
           pin: pin.join(''),
         },

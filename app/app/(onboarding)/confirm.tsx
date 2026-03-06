@@ -11,19 +11,26 @@ import { useLocalSearchParams } from 'expo-router';
 import { useRouter } from 'expo-router';
 import PocketCore from "@/modules/pocket-module";
 import { Directory, Paths } from 'expo-file-system';
-// import useWallet from '@/@src/store/wallet';
+import useWallet, { AAReadiness, WalletTransaction } from '@/@src/store/wallet';
 
 const PIN_LENGTH = 5;
 const DEFAULT_NETWORK: 'ethereum-mainnet' | 'ethereum-sepolia' = process.env.EXPO_PUBLIC_APP_ENV === 'production' ? 'ethereum-mainnet' : 'ethereum-sepolia';
 
 export default function PinScreen() {
-  // const { setTransactions, setBalance } = useWallet();
+  const {
+    setWalletAddress,
+    setSmartAccountAddress,
+    setBalancesJson,
+    setTransactions,
+    setAAReadiness,
+  } = useWallet();
   const router = useRouter();
   const { pin } = useLocalSearchParams<{
     pin: string;
   }>();
 
   const [confirmationPin, setConfirmationPin] = useState<string[]>([]);
+  const [status, setStatus] = useState('');
 
   const onPressNumber = async (value: string) => {
     if (confirmationPin.length >= PIN_LENGTH) return;
@@ -42,35 +49,59 @@ export default function PinScreen() {
   const init = async(password: string) => {
     try {
       const dataDir = new Directory(Paths.document);
+      setStatus('Preparing secure wallet...');
       await PocketCore.initWalletSecure(dataDir.uri, password)
-      await PocketCore.openOrCreateWallet('Main Wallet');
-      await PocketCore.createSmartContractAccount(DEFAULT_NETWORK);
+      const walletAddress = await PocketCore.openOrCreateWallet('Main Wallet');
+      setWalletAddress(walletAddress);
+
+      setStatus('Creating smart account...');
+      const accountRaw = await PocketCore.createSmartContractAccount(DEFAULT_NETWORK);
+      const accountPayload = JSON.parse(accountRaw) as { accountAddress?: string };
+      setSmartAccountAddress(accountPayload.accountAddress || '');
+
+      const readinessRaw = await PocketCore.getAAReadiness(DEFAULT_NETWORK);
+      const readiness = JSON.parse(readinessRaw) as AAReadiness;
+      setAAReadiness(readiness);
+      if (!readiness.smartAccountReady) {
+        throw new Error('Smart account is not ready yet. Please retry onboarding.');
+      }
 
       const accountSummary = await PocketCore.getAccountSnapshot(DEFAULT_NETWORK);
-      const snapshot = JSON.parse(accountSummary);
-      // setBalance(balance);
+      setBalancesJson(accountSummary);
 
       const txResponse = await PocketCore.listAllTransactions(DEFAULT_NETWORK, 100, 0);
-      const transactions = JSON.parse(txResponse);
-      // setBalance(transactions);
+      const transactions = JSON.parse(txResponse) as WalletTransaction[];
+      setTransactions(Array.isArray(transactions) ? transactions : []);
 
-      // router.replace("(home)")
+      await SecureStore.setItemAsync("onboarded", "true");
+      await SecureStore.setItemAsync("password", password);
+
+      if (!readiness.sponsorshipReady) {
+        setStatus('Wallet ready. Sponsored mode unavailable until bundler/paymaster config is set.');
+      }
+
+      router.replace("/(home)")
     } catch (error) {
-      console.log(error)
+      router.replace({
+        pathname: "/error",
+        params: {
+          title: "Onboarding Failed",
+          message: `${error}`
+        }
+      });
     }
   }
 
   useEffect(() => {
     if (confirmationPin.length === PIN_LENGTH) {    
       if (confirmationPin.join('') === pin) {
-        SecureStore.setItemAsync("onboarded", "true");
-        SecureStore.setItemAsync("password", confirmationPin.join(''));
         init(confirmationPin.join(''))
       } else {
-        // router.replace("(onboarding)/create")
+        setStatus('PIN mismatch. Please create a new PIN again.');
+        router.replace("/(onboarding)/create")
       }
     }
-  }, [confirmationPin]);
+  }, [confirmationPin, pin]);
 
   const renderDot = (index: number) => {
     const filled = index < confirmationPin.length;
@@ -131,6 +162,8 @@ export default function PinScreen() {
           <Text style={styles.keyText}>⌫</Text>
         </Pressable>
       </View>
+
+      {status ? <Text style={styles.status}>{status}</Text> : null}
     </View>
   );
 }
@@ -199,5 +232,12 @@ const styles = StyleSheet.create({
   },
   keyPlaceholder: {
     width: '30%',
+  },
+  status: {
+    marginTop: 24,
+    color: '#B5B5BE',
+    fontSize: 12,
+    width: '80%',
+    textAlign: 'center',
   },
 });

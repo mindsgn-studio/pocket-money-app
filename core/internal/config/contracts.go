@@ -9,16 +9,25 @@ import (
 type Deployment struct {
 	FactoryAddress        string
 	ImplementationAddress string
+	EntryPointAddress     string
+	BundlerURL            string
+	PaymasterAddress      string
 }
 
 var defaultDeployments = map[string]Deployment{
 	"ethereum-sepolia": {
-		FactoryAddress:        "0xF547f2c4fe3e1Ea59740CeF4E364cd479478f882",
-		ImplementationAddress: "0xFc35f578db9a62C53cBd5c4b983Ab3234E2333f3",
+		FactoryAddress:        "0xFD6EacA961d88FF0422898CDBb284f963D613369",
+		ImplementationAddress: "0xF8b10Fc20F1eC48c37234007a675453fC0f92152",
+		EntryPointAddress:     "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+		BundlerURL:            "",
+		PaymasterAddress:      "0x7F1BE467e9f0c2731ab9E8a646cF5972E71A66d8",
 	},
 	"ethereum-mainnet": {
 		FactoryAddress:        "",
 		ImplementationAddress: "",
+		EntryPointAddress:     "",
+		BundlerURL:            "",
+		PaymasterAddress:      "",
 	},
 }
 
@@ -31,6 +40,9 @@ func GetDeployment(network string) (Deployment, error) {
 
 	factoryEnv := envName(network, "FACTORY")
 	implEnv := envName(network, "IMPLEMENTATION")
+	entryPointEnv := envName(network, "ENTRY_POINT")
+	bundlerEnv := envName(network, "BUNDLER_URL")
+	paymasterEnv := envName(network, "PAYMASTER")
 
 	if value := strings.TrimSpace(os.Getenv(factoryEnv)); value != "" {
 		deployment.FactoryAddress = value
@@ -38,12 +50,40 @@ func GetDeployment(network string) (Deployment, error) {
 	if value := strings.TrimSpace(os.Getenv(implEnv)); value != "" {
 		deployment.ImplementationAddress = value
 	}
+	if value := strings.TrimSpace(os.Getenv(entryPointEnv)); value != "" {
+		deployment.EntryPointAddress = value
+	}
+	if value := strings.TrimSpace(os.Getenv(bundlerEnv)); value != "" {
+		deployment.BundlerURL = value
+	}
+	if value := strings.TrimSpace(os.Getenv(paymasterEnv)); value != "" {
+		deployment.PaymasterAddress = value
+	}
 
 	if deployment.FactoryAddress == "" {
 		return Deployment{}, errors.New("missing factory address for network")
 	}
 	if deployment.ImplementationAddress == "" {
 		return Deployment{}, errors.New("missing implementation address for network")
+	}
+
+	return deployment, nil
+}
+
+func ValidateAAConfig(network string, requirePaymaster bool) (Deployment, error) {
+	deployment, err := GetDeployment(network)
+	if err != nil {
+		return Deployment{}, err
+	}
+
+	if strings.TrimSpace(deployment.EntryPointAddress) == "" {
+		return Deployment{}, errors.New("missing entry point address for network")
+	}
+	if strings.TrimSpace(deployment.BundlerURL) == "" {
+		return Deployment{}, errors.New("missing bundler url for network")
+	}
+	if requirePaymaster && strings.TrimSpace(deployment.PaymasterAddress) == "" {
+		return Deployment{}, errors.New("missing paymaster address for network")
 	}
 
 	return deployment, nil

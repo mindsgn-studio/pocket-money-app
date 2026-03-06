@@ -1,7 +1,7 @@
 // Code generated - DO NOT EDIT.
 // This file is a generated binding and any manual changes will be lost.
 
-package ethereum
+package factory
 
 import (
 	"errors"
@@ -31,7 +31,7 @@ var (
 
 // FactoryMetaData contains all meta data concerning the Factory contract.
 var FactoryMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_implementation\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_initialOwner\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"OwnableInvalidOwner\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"OwnableUnauthorizedAccount\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"AccountCreated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"entryPoint\",\"type\":\"address\"}],\"name\":\"AccountCreatedWithEntryPoint\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newImplementation\",\"type\":\"address\"}],\"name\":\"ImplementationUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"createAccount\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"entryPoint\",\"type\":\"address\"}],\"name\":\"createAccountWithEntryPoint\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"getAddress\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"predicted\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"entryPoint\",\"type\":\"address\"}],\"name\":\"getAddressWithEntryPoint\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"predicted\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"implementation\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newImplementation\",\"type\":\"address\"}],\"name\":\"updateImplementation\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_implementation\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_initialOwner\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"OwnableInvalidOwner\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"OwnableUnauthorizedAccount\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"AccountCreated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newImplementation\",\"type\":\"address\"}],\"name\":\"ImplementationUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"createAccount\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"}],\"name\":\"getAddress\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"predicted\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"implementation\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newImplementation\",\"type\":\"address\"}],\"name\":\"updateImplementation\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // FactoryABI is the input ABI used to generate the binding from.
@@ -211,37 +211,6 @@ func (_Factory *FactoryCallerSession) GetAddress(owner common.Address) (common.A
 	return _Factory.Contract.GetAddress(&_Factory.CallOpts, owner)
 }
 
-// GetAddressWithEntryPoint is a free data retrieval call binding the contract method 0x0c8aa612.
-//
-// Solidity: function getAddressWithEntryPoint(address owner, address entryPoint) view returns(address predicted)
-func (_Factory *FactoryCaller) GetAddressWithEntryPoint(opts *bind.CallOpts, owner common.Address, entryPoint common.Address) (common.Address, error) {
-	var out []interface{}
-	err := _Factory.contract.Call(opts, &out, "getAddressWithEntryPoint", owner, entryPoint)
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// GetAddressWithEntryPoint is a free data retrieval call binding the contract method 0x0c8aa612.
-//
-// Solidity: function getAddressWithEntryPoint(address owner, address entryPoint) view returns(address predicted)
-func (_Factory *FactorySession) GetAddressWithEntryPoint(owner common.Address, entryPoint common.Address) (common.Address, error) {
-	return _Factory.Contract.GetAddressWithEntryPoint(&_Factory.CallOpts, owner, entryPoint)
-}
-
-// GetAddressWithEntryPoint is a free data retrieval call binding the contract method 0x0c8aa612.
-//
-// Solidity: function getAddressWithEntryPoint(address owner, address entryPoint) view returns(address predicted)
-func (_Factory *FactoryCallerSession) GetAddressWithEntryPoint(owner common.Address, entryPoint common.Address) (common.Address, error) {
-	return _Factory.Contract.GetAddressWithEntryPoint(&_Factory.CallOpts, owner, entryPoint)
-}
-
 // Implementation is a free data retrieval call binding the contract method 0x5c60da1b.
 //
 // Solidity: function implementation() view returns(address)
@@ -323,27 +292,6 @@ func (_Factory *FactorySession) CreateAccount(owner common.Address) (*types.Tran
 // Solidity: function createAccount(address owner) returns(address account)
 func (_Factory *FactoryTransactorSession) CreateAccount(owner common.Address) (*types.Transaction, error) {
 	return _Factory.Contract.CreateAccount(&_Factory.TransactOpts, owner)
-}
-
-// CreateAccountWithEntryPoint is a paid mutator transaction binding the contract method 0x20fa4e34.
-//
-// Solidity: function createAccountWithEntryPoint(address owner, address entryPoint) returns(address account)
-func (_Factory *FactoryTransactor) CreateAccountWithEntryPoint(opts *bind.TransactOpts, owner common.Address, entryPoint common.Address) (*types.Transaction, error) {
-	return _Factory.contract.Transact(opts, "createAccountWithEntryPoint", owner, entryPoint)
-}
-
-// CreateAccountWithEntryPoint is a paid mutator transaction binding the contract method 0x20fa4e34.
-//
-// Solidity: function createAccountWithEntryPoint(address owner, address entryPoint) returns(address account)
-func (_Factory *FactorySession) CreateAccountWithEntryPoint(owner common.Address, entryPoint common.Address) (*types.Transaction, error) {
-	return _Factory.Contract.CreateAccountWithEntryPoint(&_Factory.TransactOpts, owner, entryPoint)
-}
-
-// CreateAccountWithEntryPoint is a paid mutator transaction binding the contract method 0x20fa4e34.
-//
-// Solidity: function createAccountWithEntryPoint(address owner, address entryPoint) returns(address account)
-func (_Factory *FactoryTransactorSession) CreateAccountWithEntryPoint(owner common.Address, entryPoint common.Address) (*types.Transaction, error) {
-	return _Factory.Contract.CreateAccountWithEntryPoint(&_Factory.TransactOpts, owner, entryPoint)
 }
 
 // RenounceOwnership is a paid mutator transaction binding the contract method 0x715018a6.
@@ -485,19 +433,15 @@ type FactoryAccountCreated struct {
 
 // FilterAccountCreated is a free log retrieval operation binding the contract event 0xac631f3001b55ea1509cf3d7e74898f85392a61a76e8149181ae1259622dabc8.
 //
-// Solidity: event AccountCreated(address indexed owner, address indexed account)
-func (_Factory *FactoryFilterer) FilterAccountCreated(opts *bind.FilterOpts, owner []common.Address, account []common.Address) (*FactoryAccountCreatedIterator, error) {
+// Solidity: event AccountCreated(address indexed owner, address account)
+func (_Factory *FactoryFilterer) FilterAccountCreated(opts *bind.FilterOpts, owner []common.Address) (*FactoryAccountCreatedIterator, error) {
 
 	var ownerRule []interface{}
 	for _, ownerItem := range owner {
 		ownerRule = append(ownerRule, ownerItem)
 	}
-	var accountRule []interface{}
-	for _, accountItem := range account {
-		accountRule = append(accountRule, accountItem)
-	}
 
-	logs, sub, err := _Factory.contract.FilterLogs(opts, "AccountCreated", ownerRule, accountRule)
+	logs, sub, err := _Factory.contract.FilterLogs(opts, "AccountCreated", ownerRule)
 	if err != nil {
 		return nil, err
 	}
@@ -506,19 +450,15 @@ func (_Factory *FactoryFilterer) FilterAccountCreated(opts *bind.FilterOpts, own
 
 // WatchAccountCreated is a free log subscription operation binding the contract event 0xac631f3001b55ea1509cf3d7e74898f85392a61a76e8149181ae1259622dabc8.
 //
-// Solidity: event AccountCreated(address indexed owner, address indexed account)
-func (_Factory *FactoryFilterer) WatchAccountCreated(opts *bind.WatchOpts, sink chan<- *FactoryAccountCreated, owner []common.Address, account []common.Address) (event.Subscription, error) {
+// Solidity: event AccountCreated(address indexed owner, address account)
+func (_Factory *FactoryFilterer) WatchAccountCreated(opts *bind.WatchOpts, sink chan<- *FactoryAccountCreated, owner []common.Address) (event.Subscription, error) {
 
 	var ownerRule []interface{}
 	for _, ownerItem := range owner {
 		ownerRule = append(ownerRule, ownerItem)
 	}
-	var accountRule []interface{}
-	for _, accountItem := range account {
-		accountRule = append(accountRule, accountItem)
-	}
 
-	logs, sub, err := _Factory.contract.WatchLogs(opts, "AccountCreated", ownerRule, accountRule)
+	logs, sub, err := _Factory.contract.WatchLogs(opts, "AccountCreated", ownerRule)
 	if err != nil {
 		return nil, err
 	}
@@ -552,172 +492,10 @@ func (_Factory *FactoryFilterer) WatchAccountCreated(opts *bind.WatchOpts, sink 
 
 // ParseAccountCreated is a log parse operation binding the contract event 0xac631f3001b55ea1509cf3d7e74898f85392a61a76e8149181ae1259622dabc8.
 //
-// Solidity: event AccountCreated(address indexed owner, address indexed account)
+// Solidity: event AccountCreated(address indexed owner, address account)
 func (_Factory *FactoryFilterer) ParseAccountCreated(log types.Log) (*FactoryAccountCreated, error) {
 	event := new(FactoryAccountCreated)
 	if err := _Factory.contract.UnpackLog(event, "AccountCreated", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
-// FactoryAccountCreatedWithEntryPointIterator is returned from FilterAccountCreatedWithEntryPoint and is used to iterate over the raw logs and unpacked data for AccountCreatedWithEntryPoint events raised by the Factory contract.
-type FactoryAccountCreatedWithEntryPointIterator struct {
-	Event *FactoryAccountCreatedWithEntryPoint // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *FactoryAccountCreatedWithEntryPointIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(FactoryAccountCreatedWithEntryPoint)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(FactoryAccountCreatedWithEntryPoint)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *FactoryAccountCreatedWithEntryPointIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *FactoryAccountCreatedWithEntryPointIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// FactoryAccountCreatedWithEntryPoint represents a AccountCreatedWithEntryPoint event raised by the Factory contract.
-type FactoryAccountCreatedWithEntryPoint struct {
-	Owner      common.Address
-	Account    common.Address
-	EntryPoint common.Address
-	Raw        types.Log // Blockchain specific contextual infos
-}
-
-// FilterAccountCreatedWithEntryPoint is a free log retrieval operation binding the contract event 0x0390b425ca09b03cb2c0b841babcfeeae5aa906ced642d9ff74886200f693c82.
-//
-// Solidity: event AccountCreatedWithEntryPoint(address indexed owner, address indexed account, address indexed entryPoint)
-func (_Factory *FactoryFilterer) FilterAccountCreatedWithEntryPoint(opts *bind.FilterOpts, owner []common.Address, account []common.Address, entryPoint []common.Address) (*FactoryAccountCreatedWithEntryPointIterator, error) {
-
-	var ownerRule []interface{}
-	for _, ownerItem := range owner {
-		ownerRule = append(ownerRule, ownerItem)
-	}
-	var accountRule []interface{}
-	for _, accountItem := range account {
-		accountRule = append(accountRule, accountItem)
-	}
-	var entryPointRule []interface{}
-	for _, entryPointItem := range entryPoint {
-		entryPointRule = append(entryPointRule, entryPointItem)
-	}
-
-	logs, sub, err := _Factory.contract.FilterLogs(opts, "AccountCreatedWithEntryPoint", ownerRule, accountRule, entryPointRule)
-	if err != nil {
-		return nil, err
-	}
-	return &FactoryAccountCreatedWithEntryPointIterator{contract: _Factory.contract, event: "AccountCreatedWithEntryPoint", logs: logs, sub: sub}, nil
-}
-
-// WatchAccountCreatedWithEntryPoint is a free log subscription operation binding the contract event 0x0390b425ca09b03cb2c0b841babcfeeae5aa906ced642d9ff74886200f693c82.
-//
-// Solidity: event AccountCreatedWithEntryPoint(address indexed owner, address indexed account, address indexed entryPoint)
-func (_Factory *FactoryFilterer) WatchAccountCreatedWithEntryPoint(opts *bind.WatchOpts, sink chan<- *FactoryAccountCreatedWithEntryPoint, owner []common.Address, account []common.Address, entryPoint []common.Address) (event.Subscription, error) {
-
-	var ownerRule []interface{}
-	for _, ownerItem := range owner {
-		ownerRule = append(ownerRule, ownerItem)
-	}
-	var accountRule []interface{}
-	for _, accountItem := range account {
-		accountRule = append(accountRule, accountItem)
-	}
-	var entryPointRule []interface{}
-	for _, entryPointItem := range entryPoint {
-		entryPointRule = append(entryPointRule, entryPointItem)
-	}
-
-	logs, sub, err := _Factory.contract.WatchLogs(opts, "AccountCreatedWithEntryPoint", ownerRule, accountRule, entryPointRule)
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(FactoryAccountCreatedWithEntryPoint)
-				if err := _Factory.contract.UnpackLog(event, "AccountCreatedWithEntryPoint", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseAccountCreatedWithEntryPoint is a log parse operation binding the contract event 0x0390b425ca09b03cb2c0b841babcfeeae5aa906ced642d9ff74886200f693c82.
-//
-// Solidity: event AccountCreatedWithEntryPoint(address indexed owner, address indexed account, address indexed entryPoint)
-func (_Factory *FactoryFilterer) ParseAccountCreatedWithEntryPoint(log types.Log) (*FactoryAccountCreatedWithEntryPoint, error) {
-	event := new(FactoryAccountCreatedWithEntryPoint)
-	if err := _Factory.contract.UnpackLog(event, "AccountCreatedWithEntryPoint", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log

@@ -108,6 +108,16 @@ type AccountSnapshot struct {
 	Balances       []TokenBalance `json:"balances"`
 }
 
+type SendResult struct {
+	OperationHash string `json:"operationHash"`
+	UserOpHash    string `json:"userOpHash"`
+	TxHash        string `json:"txHash"`
+	Mode          string `json:"mode"`
+	Sponsored     bool   `json:"sponsored"`
+	Network       string `json:"network"`
+	Token         string `json:"token"`
+}
+
 var NetworkMainnetList []string = []string{
 	"ethereum-mainnet",
 }
@@ -165,6 +175,14 @@ var smartAccountABI = mustParseABI(`[{
 	"name":"execute",
 	"outputs":[{"internalType":"bytes","name":"","type":"bytes"}],
 	"stateMutability":"nonpayable",
+	"type":"function"
+}]`)
+
+var entryPointABI = mustParseABI(`[{ 
+	"inputs":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint192","name":"key","type":"uint192"}],
+	"name":"getNonce",
+	"outputs":[{"internalType":"uint256","name":"nonce","type":"uint256"}],
+	"stateMutability":"view",
 	"type":"function"
 }]`)
 
@@ -546,119 +564,171 @@ func SendToken(
 	note string,
 	providerID string,
 ) (string, error) {
+	result, err := SendTokenWithMode(ctx, db, network, tokenIdentifier, recipientAddress, amount, note, providerID, SendModeAuto)
+	if err != nil {
+		return "", err
+	}
+	if result.OperationHash != "" {
+		return result.OperationHash, nil
+	}
+	return result.TxHash, nil
+}
+
+func SendTokenWithMode(
+	ctx context.Context,
+	db *database.DB,
+	network string,
+	tokenIdentifier string,
+	recipientAddress string,
+	amount string,
+	note string,
+	providerID string,
+	sendMode string,
+) (SendResult, error) {
 	if db == nil {
-		return "", errors.New("database is required")
+		return SendResult{}, errors.New("database is required")
 	}
 	if recipientAddress == "" {
-		return "", errors.New("recipient address is required")
+		return SendResult{}, errors.New("recipient address is required")
 	}
 	if !common.IsHexAddress(recipientAddress) {
-		return "", errors.New("invalid recipient address")
+		return SendResult{}, errors.New("invalid recipient address")
 	}
 	token, err := resolveToken(network, tokenIdentifier)
 	if err != nil {
-		return "", err
+		return SendResult{}, err
 	}
 
 	amountUnits, err := parseTokenAmount(amount, token.Decimals)
 	if err != nil {
-		return "", err
+		return SendResult{}, err
 	}
 	if amountUnits.Sign() <= 0 {
-		return "", errors.New("amount must be greater than zero")
+		return SendResult{}, errors.New("amount must be greater than zero")
 	}
 
 	walletSecrets, err := db.ListWalletSecrets(ctx)
 	if err != nil {
-		return "", err
+		return SendResult{}, err
 	}
 	if len(walletSecrets) == 0 {
-		return "", errors.New("no wallet found")
+		return SendResult{}, errors.New("no wallet found")
 	}
 
 	sender := walletSecrets[0]
 	if !common.IsHexAddress(sender.Address) {
-		return "", errors.New("invalid sender address")
+		return SendResult{}, errors.New("invalid sender address")
 	}
 
 	record, err := db.FindSmartAccountByOwnerNetwork(ctx, sender.Address, network)
 	if err != nil {
-		return "", errors.New("smart account not found for sender")
+		return SendResult{}, errors.New("smart account not found for sender")
 	}
 	if !common.IsHexAddress(record.Address) {
-		return "", errors.New("invalid smart account address")
+		return SendResult{}, errors.New("invalid smart account address")
 	}
 	senderSmartAccount := record.Address
 
 	currentBalance, err := GetTokenBalanceForAddress(ctx, senderSmartAccount, network, token.Identifier)
 	if err != nil {
-		return "", err
+		return SendResult{}, err
 	}
 	currentBalanceUnits, err := parseTokenAmount(currentBalance, token.Decimals)
 	if err != nil {
-		return "", err
+		return SendResult{}, err
 	}
 	if currentBalanceUnits.Cmp(amountUnits) < 0 {
-		return "", fmt.Errorf("insufficient %s balance", token.Symbol)
+		return SendResult{}, fmt.Errorf("insufficient %s balance", token.Symbol)
 	}
 
 	networkConfig := GetNetwork(network)
 	if len(networkConfig.RPC) == 0 {
-		return "", fmt.Errorf("unsupported network: %s", network)
+		return SendResult{}, fmt.Errorf("unsupported network: %s", network)
 	}
 
 	client, err := ethclient.DialContext(ctx, networkConfig.RPC[0])
 	if err != nil {
-		return "", err
+		return SendResult{}, err
 	}
 	defer client.Close()
 
-	senderAddress := common.HexToAddress(sender.Address)
-	nativeBalance, err := client.BalanceAt(ctx, senderAddress, nil)
-	if err != nil {
-		return "", err
-	}
-	if nativeBalance.Cmp(minGasReserveWei(network)) < 0 {
-		return "", errors.New("insufficient native gas token reserve")
-	}
-
 	privateKey, err := crypto.ToECDSA(sender.PrivateKey)
 	if err != nil {
-		return "", err
-	}
-
-	nonce, err := client.PendingNonceAt(ctx, senderAddress)
-	if err != nil {
-		return "", err
-	}
-
-	gasPrice, err := client.SuggestGasPrice(ctx)
-	if err != nil {
-		return "", err
+		return SendResult{}, err
 	}
 
 	recipient := common.HexToAddress(recipientAddress)
 	smartAccount := common.HexToAddress(senderSmartAccount)
 
-	var target common.Address
-	var value *big.Int
-	var executeData []byte
-	if token.IsNative {
-		target = recipient
-		value = amountUnits
-		executeData = []byte{}
-	} else {
+	target := recipient
+	value := amountUnits
+	executeData := []byte{}
+	if !token.IsNative {
 		target = common.HexToAddress(token.Address)
 		value = big.NewInt(0)
 		executeData, err = erc20ABI.Pack("transfer", recipient, amountUnits)
 		if err != nil {
-			return "", err
+			return SendResult{}, err
 		}
 	}
 
 	callData, err := smartAccountABI.Pack("execute", target, value, executeData)
 	if err != nil {
-		return "", err
+		return SendResult{}, err
+	}
+
+	mode := ResolveSendMode(sendMode)
+	if mode != SendModeDirect {
+		aaResult, aaErr := sendTokenViaUserOperation(ctx, db, client, network, networkConfig, sender, smartAccount, recipientAddress, token, amountUnits, callData, note, providerID, mode, privateKey)
+		if aaErr == nil {
+			return aaResult, nil
+		}
+		if mode == SendModeSponsored {
+			return SendResult{}, aaErr
+		}
+	}
+
+	directResult, err := sendTokenDirect(ctx, db, client, network, networkConfig, sender, smartAccount, recipientAddress, token, amountUnits, callData, note, providerID, privateKey)
+	if err != nil {
+		return SendResult{}, err
+	}
+
+	return directResult, nil
+}
+
+func sendTokenDirect(
+	ctx context.Context,
+	db *database.DB,
+	client *ethclient.Client,
+	network string,
+	networkConfig networkDetails,
+	sender database.WalletSecret,
+	smartAccount common.Address,
+	recipientAddress string,
+	token TokenConfig,
+	amountUnits *big.Int,
+	callData []byte,
+	note string,
+	providerID string,
+	privateKey *ecdsa.PrivateKey,
+) (SendResult, error) {
+	senderAddress := common.HexToAddress(sender.Address)
+	nativeBalance, err := client.BalanceAt(ctx, senderAddress, nil)
+	if err != nil {
+		return SendResult{}, err
+	}
+	if nativeBalance.Cmp(minGasReserveWei(network)) < 0 {
+		return SendResult{}, errors.New("insufficient native gas token reserve")
+	}
+
+	nonce, err := client.PendingNonceAt(ctx, senderAddress)
+	if err != nil {
+		return SendResult{}, err
+	}
+
+	gasPrice, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		return SendResult{}, err
 	}
 
 	call := ethereum.CallMsg{
@@ -676,11 +746,11 @@ func SendToken(
 	signer := types.NewEIP155Signer(big.NewInt(int64(networkConfig.ChainID)))
 	signedTx, err := types.SignTx(tx, signer, privateKey)
 	if err != nil {
-		return "", err
+		return SendResult{}, err
 	}
 
 	if err := client.SendTransaction(ctx, signedTx); err != nil {
-		return "", err
+		return SendResult{}, err
 	}
 
 	txHash := signedTx.Hash().Hex()
@@ -688,6 +758,7 @@ func SendToken(
 		TxHash:          txHash,
 		Nonce:           int64(nonce),
 		Chain:           network,
+		EntryPoint:      "",
 		Token:           token.Symbol,
 		TokenAddress:    token.Address,
 		TokenDecimals:   token.Decimals,
@@ -695,23 +766,213 @@ func SendToken(
 		Amount:          formatTokenUnits(amountUnits, token.Decimals),
 		TransactionType: "transfer",
 		State:           "pending",
+		BundlerStatus:   "",
+		TxMode:          "direct",
+		SponsorshipMode: SendModeDirect,
 		Note:            note,
-		Source:          senderSmartAccount,
+		Source:          smartAccount.Hex(),
 		Destination:     recipientAddress,
 		ProviderID:      providerID,
 		WalletAddress:   sender.Address,
 		Counterparty:    recipientAddress,
 	}); err != nil {
-		return "", err
+		return SendResult{}, err
 	}
 
-	return txHash, nil
+	return SendResult{
+		OperationHash: txHash,
+		TxHash:        txHash,
+		Mode:          "direct",
+		Sponsored:     false,
+		Network:       network,
+		Token:         token.Symbol,
+	}, nil
+}
+
+func sendTokenViaUserOperation(
+	ctx context.Context,
+	db *database.DB,
+	client *ethclient.Client,
+	network string,
+	networkConfig networkDetails,
+	sender database.WalletSecret,
+	smartAccount common.Address,
+	recipientAddress string,
+	token TokenConfig,
+	amountUnits *big.Int,
+	callData []byte,
+	note string,
+	providerID string,
+	sendMode string,
+	privateKey *ecdsa.PrivateKey,
+) (SendResult, error) {
+	sponsored := sendMode == SendModeSponsored
+	deployment, err := config.ValidateAAConfig(network, sponsored)
+	if err != nil {
+		return SendResult{}, err
+	}
+	if !common.IsHexAddress(deployment.EntryPointAddress) {
+		return SendResult{}, errors.New("invalid entry point address")
+	}
+
+	entryPointAddress := common.HexToAddress(deployment.EntryPointAddress)
+	nonceData, err := entryPointABI.Pack("getNonce", smartAccount, uint64(0))
+	if err != nil {
+		return SendResult{}, err
+	}
+	nonceRaw, err := client.CallContract(ctx, ethereum.CallMsg{To: &entryPointAddress, Data: nonceData}, nil)
+	if err != nil {
+		return SendResult{}, err
+	}
+	decodedNonce, err := entryPointABI.Unpack("getNonce", nonceRaw)
+	if err != nil || len(decodedNonce) != 1 {
+		return SendResult{}, errors.New("failed to decode entry point nonce")
+	}
+	nonce, ok := decodedNonce[0].(*big.Int)
+	if !ok {
+		return SendResult{}, errors.New("invalid nonce type")
+	}
+
+	gasPrice, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		return SendResult{}, err
+	}
+	priorityFee := new(big.Int).Div(gasPrice, big.NewInt(4))
+	if priorityFee.Sign() == 0 {
+		priorityFee = big.NewInt(1)
+	}
+
+	op := UserOperation{
+		Sender:               smartAccount,
+		Nonce:                nonce,
+		InitCode:             []byte{},
+		CallData:             callData,
+		CallGasLimit:         big.NewInt(220000),
+		VerificationGasLimit: big.NewInt(120000),
+		PreVerificationGas:   big.NewInt(50000),
+		MaxFeePerGas:         gasPrice,
+		MaxPriorityFeePerGas: priorityFee,
+		PaymasterAndData:     []byte{},
+	}
+
+	if sponsored {
+		policy := LoadPaymasterPolicy()
+		if err := ValidateSponsoredTransfer(policy, token, amountUnits); err != nil {
+			_ = db.RecordPaymasterValidation(ctx, database.PaymasterValidation{
+				SenderAddress:   sender.Address,
+				Decision:        "rejected",
+				RejectionReason: err.Error(),
+				AmountUnits:     amountUnits.String(),
+				Metadata:        network,
+			})
+			return SendResult{}, err
+		}
+
+		countToday, err := db.CountSponsoredOperationsToday(ctx, sender.Address)
+		if err == nil && countToday >= 50 {
+			return SendResult{}, errors.New("sponsorship daily operation limit reached")
+		}
+
+		sumToday, err := db.SumSponsoredAmountToday(ctx, sender.Address)
+		if err == nil {
+			next := new(big.Int).Add(sumToday, amountUnits)
+			if next.Cmp(policy.DailyLimit) > 0 {
+				return SendResult{}, errors.New("sponsorship daily amount limit exceeded")
+			}
+		}
+
+		paymasterAndData, err := BuildPaymasterAndData(deployment.PaymasterAddress)
+		if err != nil {
+			return SendResult{}, err
+		}
+		op.PaymasterAndData = paymasterAndData
+
+		_ = db.RecordPaymasterValidation(ctx, database.PaymasterValidation{
+			SenderAddress: sender.Address,
+			Decision:      "approved",
+			AmountUnits:   amountUnits.String(),
+			Metadata:      network,
+		})
+	}
+
+	bundler := NewBundlerClient(deployment.BundlerURL)
+	if estimate, err := bundler.EstimateUserOperationGas(ctx, op, entryPointAddress.Hex()); err == nil {
+		op.PreVerificationGas = estimate.PreVerificationGas
+		op.VerificationGasLimit = estimate.VerificationGasLimit
+		op.CallGasLimit = estimate.CallGasLimit
+	}
+
+	signature, userOpHash, err := SignUserOperation(op, entryPointAddress, big.NewInt(int64(networkConfig.ChainID)), privateKey)
+	if err != nil {
+		return SendResult{}, err
+	}
+	op.Signature = signature
+
+	sentUserOpHash, err := bundler.SendUserOperation(ctx, op, entryPointAddress.Hex())
+	if err != nil {
+		return SendResult{}, err
+	}
+	if strings.TrimSpace(sentUserOpHash) == "" {
+		sentUserOpHash = userOpHash.Hex()
+	}
+
+	if err := db.InsertTransactionIfMissing(ctx, database.TransactionRecord{
+		TxHash:          sentUserOpHash,
+		UserOpHash:      sentUserOpHash,
+		Nonce:           op.Nonce.Int64(),
+		Chain:           network,
+		EntryPoint:      entryPointAddress.Hex(),
+		Token:           token.Symbol,
+		TokenAddress:    token.Address,
+		TokenDecimals:   token.Decimals,
+		NativeToken:     token.IsNative,
+		Amount:          formatTokenUnits(amountUnits, token.Decimals),
+		TransactionType: "transfer",
+		State:           "pending",
+		BundlerStatus:   "submitted",
+		TxMode:          "userop",
+		SponsorshipMode: sendMode,
+		Note:            note,
+		Source:          smartAccount.Hex(),
+		Destination:     recipientAddress,
+		ProviderID:      providerID,
+		WalletAddress:   sender.Address,
+		Counterparty:    recipientAddress,
+	}); err != nil {
+		return SendResult{}, err
+	}
+
+	if sponsored {
+		_ = db.RecordSponsoredOperation(ctx, database.SponsoredOperation{
+			UserOperationID: sentUserOpHash,
+			SenderAddress:   sender.Address,
+			Network:         network,
+			TokenAddress:    token.Address,
+			Recipient:       recipientAddress,
+			AmountUnits:     amountUnits.String(),
+			Status:          "submitted",
+		})
+	}
+
+	return SendResult{
+		OperationHash: sentUserOpHash,
+		UserOpHash:    sentUserOpHash,
+		Mode:          "userop",
+		Sponsored:     sponsored,
+		Network:       network,
+		Token:         token.Symbol,
+	}, nil
 }
 
 func SyncTransactionStatus(ctx context.Context, txHash string, network string) (string, error) {
 	if txHash == "" {
 		return "", errors.New("transaction hash is required")
 	}
+
+	if status, _, _, err := SyncUserOperationStatus(ctx, txHash, network); err == nil && status != "" {
+		return status, nil
+	}
+
 	networkConfig := GetNetwork(network)
 	if len(networkConfig.RPC) == 0 {
 		return "", fmt.Errorf("unsupported network: %s", network)
@@ -737,6 +998,28 @@ func SyncTransactionStatus(ctx context.Context, txHash string, network string) (
 	}
 
 	return "failed", nil
+}
+
+func SyncUserOperationStatus(ctx context.Context, userOpHash string, network string) (string, string, string, error) {
+	deployment, err := config.ValidateAAConfig(network, false)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	bundler := NewBundlerClient(deployment.BundlerURL)
+	receipt, err := bundler.GetUserOperationReceipt(ctx, userOpHash)
+	if err != nil {
+		return "", "", "", err
+	}
+	if receipt == nil {
+		return "pending", "", "pending", nil
+	}
+
+	if receipt.Success {
+		return "completed", strings.TrimSpace(receipt.TransactionHash), "included", nil
+	}
+
+	return "failed", strings.TrimSpace(receipt.TransactionHash), "failed", nil
 }
 
 func formatTokenUnits(amount *big.Int, decimals int) string {
@@ -866,6 +1149,20 @@ func ListTokenTransactions(ctx context.Context, db *database.DB, network string,
 			continue
 		}
 
+		if tx.TxMode == "userop" || tx.UserOpHash != "" {
+			status, _, bundlerStatus, err := SyncUserOperationStatus(ctx, tx.TxHash, network)
+			if err != nil {
+				continue
+			}
+			if status != tx.State || bundlerStatus != tx.BundlerStatus {
+				_ = db.UpdateTransactionSettlement(ctx, tx.TxHash, status, bundlerStatus)
+				transactions[idx].State = status
+				transactions[idx].BundlerStatus = bundlerStatus
+				transactions[idx].UpdatedAt = time.Now().Unix()
+			}
+			continue
+		}
+
 		status, err := SyncTransactionStatus(ctx, tx.TxHash, network)
 		if err != nil {
 			continue
@@ -910,6 +1207,20 @@ func ListAllTransactions(ctx context.Context, db *database.DB, network string, l
 
 	for idx, tx := range items {
 		if tx.State != "pending" {
+			continue
+		}
+
+		if tx.TxMode == "userop" || tx.UserOpHash != "" {
+			status, _, bundlerStatus, err := SyncUserOperationStatus(ctx, tx.TxHash, network)
+			if err != nil {
+				continue
+			}
+			if status != tx.State || bundlerStatus != tx.BundlerStatus {
+				_ = db.UpdateTransactionSettlement(ctx, tx.TxHash, status, bundlerStatus)
+				items[idx].State = status
+				items[idx].BundlerStatus = bundlerStatus
+				items[idx].UpdatedAt = time.Now().Unix()
+			}
 			continue
 		}
 

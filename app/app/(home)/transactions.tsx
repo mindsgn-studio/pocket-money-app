@@ -1,30 +1,59 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import PocketCore from '@/modules/pocket-module';
 import { Directory, Paths } from 'expo-file-system';
 
 const DEFAULT_NETWORK: 'ethereum-mainnet' | 'ethereum-sepolia' = process.env.EXPO_PUBLIC_APP_ENV === 'production' ? 'ethereum-mainnet' : 'ethereum-sepolia';
 
+type TxItem = {
+  hash: string;
+  userOpHash?: string;
+  token: string;
+  amount: string;
+  state: string;
+  mode?: string;
+  sponsorshipMode?: string;
+  bundlerStatus?: string;
+  metadata?: {
+    source?: string;
+    destination?: string;
+    note?: string;
+  };
+};
+
 export default function App() {
   const [walletAddress, setWalletAddress] = useState('')
-  const [summary, setSummary] = useState('{}')
-  const [transactions, setTransactions] = useState('[]')
-  const [backupPayload, setBackupPayload] = useState('')
-  const [passphrase, setPassphrase] = useState('')
-  const [destination, setDestination] = useState('')
-  const [tokenIdentifier, setTokenIdentifier] = useState('usdc')
-  const [amount, setAmount] = useState('')
-  const [note, setNote] = useState('')
-  const [providerID, setProviderID] = useState('')
+  const [transactions, setTransactions] = useState<TxItem[]>([])
   const [status, setStatus] = useState('Initializing...')
+  const [lastUpdated, setLastUpdated] = useState<number>(0)
 
   const refreshData = useCallback(async () => {
-    const accountSummary = await PocketCore.getAccountSnapshot(DEFAULT_NETWORK)
-    setSummary(accountSummary)
-
     const tx = await PocketCore.listAllTransactions(DEFAULT_NETWORK, 20, 0)
-    setTransactions(tx)
+    const parsed = JSON.parse(tx) as TxItem[]
+    setTransactions(Array.isArray(parsed) ? parsed : [])
+    setLastUpdated(Date.now())
   }, []);
+
+  const formatLifecycle = (item: TxItem): string => {
+    if (item.state === 'completed') return 'Completed'
+    if (item.state === 'failed') return 'Failed'
+    if (item.bundlerStatus === 'included') return 'Included onchain'
+    if (item.bundlerStatus === 'submitted') return 'Submitted to bundler'
+    return 'Pending'
+  }
+
+  const fallbackHint = (item: TxItem): string => {
+    if (item.state === 'failed' && item.sponsorshipMode === 'sponsored') {
+      return 'Retry in AUTO or DIRECT mode if sponsorship is unavailable.'
+    }
+    if (item.state === 'failed' && item.mode === 'direct') {
+      return 'Check native gas balance on the owner wallet and retry.'
+    }
+    if (item.state === 'pending') {
+      return 'Still processing. Pull to refresh or check again in a few seconds.'
+    }
+    return 'No action required.'
+  }
 
   useEffect(() => { 
     const bootstrapWallet = async () => {
@@ -46,67 +75,39 @@ export default function App() {
     bootstrapWallet()
   }, [refreshData]);
 
-  const onSendToken = async () => {
-    try {
-      setStatus(`Sending ${tokenIdentifier.toUpperCase()}...`)
-      const result = await PocketCore.sendToken(DEFAULT_NETWORK, tokenIdentifier, destination, amount, note, providerID)
-      setStatus(`Sent: ${result}`)
-      await refreshData()
-    } catch (error) {
-      setStatus(`Send failed: ${String(error)}`)
-    }
-  }
-
-  const onExportBackup = async () => {
-    try {
-      const payload = await PocketCore.exportBackup(passphrase)
-      setBackupPayload(payload)
-      setStatus('Backup exported')
-    } catch (error) {
-      setStatus(`Export failed: ${String(error)}`)
-    }
-  }
-
-  const onImportBackup = async () => {
-    try {
-      const result = await PocketCore.importBackup(backupPayload, passphrase)
-      setStatus(`Import result: ${result}`)
-      await refreshData()
-    } catch (error) {
-      setStatus(`Import failed: ${String(error)}`)
-    }
-  }
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refreshData().catch(() => null)
+    }, 10000)
+    return () => clearInterval(timer)
+  }, [refreshData])
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Pocket Money</Text>
-      <Text style={styles.label}>Wallet</Text>
+      <Text style={styles.title}>Transactions</Text>
+      <Text style={styles.label}>Wallet ({DEFAULT_NETWORK})</Text>
       <Text style={styles.value}>{walletAddress || 'Not ready'}</Text>
+      <Text style={styles.value}>Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : 'n/a'}</Text>
 
+      <Pressable style={styles.refresh} onPress={() => refreshData().catch((error) => setStatus(`Refresh failed: ${String(error)}`))}>
+        <Text style={styles.refreshText}>Refresh</Text>
+      </Pressable>
 
-      <Text style={styles.section}>Send Token</Text>
-      <TextInput style={styles.input} value={tokenIdentifier} onChangeText={setTokenIdentifier} placeholder="Token identifier (native/usdc)" autoCapitalize="none" />
-      <TextInput style={styles.input} value={destination} onChangeText={setDestination} placeholder="Destination address" autoCapitalize="none" />
-      <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="Amount (e.g. 1.50)" keyboardType="decimal-pad" />
-      <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Note" />
-      <TextInput style={styles.input} value={providerID} onChangeText={setProviderID} placeholder="Provider ID (optional)" autoCapitalize="none" />
-      <Button title="Send" onPress={onSendToken} />
-
-      <Text style={styles.section}>Backup</Text>
-      <TextInput style={styles.input} value={passphrase} onChangeText={setPassphrase} placeholder="Backup passphrase" secureTextEntry />
-      <Button title="Export Backup" onPress={onExportBackup} />
-      <View style={styles.spacer} />
-      <Button title="Import Backup" onPress={onImportBackup} />
-      <TextInput
-        style={[styles.input, styles.multiline]}
-        value={backupPayload}
-        onChangeText={setBackupPayload}
-        placeholder="Backup payload"
-        multiline
-      />
-
-      <Text style={styles.section}>Transactions</Text>
-      <Text style={styles.value}>{transactions}</Text>
+      <Text style={styles.section}>Latest Activity</Text>
+      {transactions.length === 0 ? <Text style={styles.value}>No transactions yet</Text> : null}
+      {transactions.map((item, index) => (
+        <View key={`${item.hash}-${index}`} style={styles.card}>
+          <Text style={styles.row}>Token: {item.token} {item.amount}</Text>
+          <Text style={styles.row}>Lifecycle: {formatLifecycle(item)}</Text>
+          <Text style={styles.row}>State: {item.state}</Text>
+          <Text style={styles.row}>Flow: {item.mode || 'direct'} / {item.sponsorshipMode || 'direct'}</Text>
+          <Text style={styles.row}>Bundler: {item.bundlerStatus || 'n/a'}</Text>
+          <Text style={styles.row}>Op: {item.userOpHash || item.hash}</Text>
+          <Text style={styles.row}>To: {item.metadata?.destination || 'n/a'}</Text>
+          <Text style={styles.row}>Note: {item.metadata?.note || '-'}</Text>
+          <Text style={styles.hint}>{fallbackHint(item)}</Text>
+        </View>
+      ))}
 
       <Text style={styles.status}>{status}</Text>
     </ScrollView>
@@ -135,18 +136,31 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 12
   },
-  input: {
+  card: {
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 10
+    paddingVertical: 10,
+    gap: 4
   },
-  multiline: {
-    minHeight: 100,
-    textAlignVertical: 'top'
+  refresh: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  spacer: {
-    height: 8
+  refreshText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  row: {
+    fontSize: 12
+  },
+  hint: {
+    fontSize: 11,
+    color: '#374151',
   },
   status: {
     marginTop: 12,
