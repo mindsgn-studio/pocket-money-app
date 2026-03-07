@@ -12,6 +12,11 @@ Local Expo module that exposes the `PocketCore` native API to JavaScript.
 
 If any of these are missing, `requireNativeModule('PocketCore')` will fail at runtime.
 
+## Build profile env configuration
+
+Pocket runtime config values for Expo builds are defined in `app/eas.json`.
+Keep all current `EXPO_PUBLIC_POCKET_*` keys populated for every profile (`development`, `preview`, `production`) so the native bridge and Go core see consistent config at app startup.
+
 ## Regenerate and validate iOS registration
 
 ```bash

@@ -10,6 +10,8 @@ Hardhat project for Pocket Money account-abstraction contracts.
 
 Deployments are written to `contract/deployments/<network>.json` and consumed by core runtime config.
 
+For mobile builds, mirror deployment outputs into `app/eas.json` profile env fields (`EXPO_PUBLIC_POCKET_*`) so app/core runtime values match deployed contracts.
+
 ## Prerequisites
 
 - Node.js 22+

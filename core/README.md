@@ -81,6 +81,9 @@ When `EXPO_PUBLIC_POCKET_APP_ENV=production`, `Init(...)` validates AA config fo
 
 This prevents silent misconfiguration in production releases.
 
+For Expo mobile builds, these values should be supplied through `app/eas.json` profile `env` entries.
+Current project convention is to keep all `EXPO_PUBLIC_POCKET_*` keys present in each profile and replace placeholders before release.
+
 ## Expo Bridge Mapping
 
 The Expo module (`app/modules/pocket-module`) exposes the same core methods, including mode-aware transfer methods:

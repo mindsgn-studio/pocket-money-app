@@ -36,3 +36,4 @@ coverage
 *.env
 app/modules/pocket-module/android
 app/modules/pocket-module/ios
+eas.json

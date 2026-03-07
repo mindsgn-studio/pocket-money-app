@@ -52,6 +52,9 @@ The Expo bridge (`PocketCore`) exposes the `WalletCore` facade methods, includin
 
 Core deployment config is loaded from defaults with env override precedence.
 
+For mobile builds, the profile-level env source of truth is `app/eas.json`.
+Each EAS profile (`development`, `preview`, `production`) contains a full `EXPO_PUBLIC_POCKET_*` key matrix used by the current core/app runtime paths.
+
 Pattern:
 
 - `EXPO_PUBLIC_POCKET_FACTORY_ETHEREUM_SEPOLIA`
@@ -82,6 +85,9 @@ Optional sponsorship and transport tuning:
 - `EXPO_PUBLIC_POCKET_PAYMASTER_DAILY_OP_LIMIT_<NETWORK>` (default `50`)
 - `EXPO_PUBLIC_POCKET_BUNDLER_RETRY_MAX_ATTEMPTS` (default `3`)
 - `EXPO_PUBLIC_POCKET_BUNDLER_RETRY_BACKOFF_MS` (default `400`)
+
+Note: `app/eas.json` includes placeholder values for some production fields (for example bundler URLs and signer keys).
+Replace placeholders with real values before release builds.
 
 `getAAReadiness` reports infrastructure readiness. Use `getSmartAccountCreationReadiness` before account creation to validate owner gas/sponsorship and hard-block onboarding on deterministic failure reasons.
 
