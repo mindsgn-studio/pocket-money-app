@@ -72,6 +72,8 @@ export default function PinScreen() {
       setWalletAddress(walletAddress);
 
       const creationRaw = await PocketCore.getSmartAccountCreationReadiness(DEFAULT_NETWORK);
+      console.log("Creation readiness", creationRaw);
+      /*
       const creationReadiness = JSON.parse(creationRaw) as SmartAccountCreationReadiness;
       setCreationReadiness(creationReadiness);
       if (!creationReadiness.isReady && !creationReadiness.smartAccountExists) {
@@ -109,6 +111,7 @@ export default function PinScreen() {
       }
 
       router.replace("/(home)")
+      */
     } catch (error) {
       router.replace({
         pathname: "/error",

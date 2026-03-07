@@ -1,5 +1,6 @@
 import { network } from "hardhat";
 import dotenv from "dotenv";
+
 dotenv.config({ path: "/etc/secrets/pocket.env" });
 
 async function main() {

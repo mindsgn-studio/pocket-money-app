@@ -101,8 +101,8 @@ Key contract behavior:
 ## Sponsorship Environment
 
 Signer key:
-- `POCKET_PAYMASTER_SIGNER_PRIVATE_KEY_<NETWORK>`
-- `POCKET_PAYMASTER_SIGNER_PRIVATE_KEY` (fallback)
+- `EXPO_PUBLIC_POCKET_PAYMASTER_SIGNER_PRIVATE_KEY_<NETWORK>`
+- `EXPO_PUBLIC_POCKET_PAYMASTER_SIGNER_PRIVATE_KEY` (fallback)
 
 Policy and reliability controls:
 - `POCKET_PAYMASTER_DAILY_OP_LIMIT_<NETWORK>` (default `50`)

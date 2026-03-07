@@ -157,7 +157,7 @@ func NewWalletCore() *WalletCore {
 }
 
 func (w *WalletCore) Init(dataDir, password, masterKeyB64, kdfSaltB64 string) error {
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("POCKET_APP_ENV")), "production") {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("EXPO_PUBLIC_POCKET_APP_ENV")), "production") {
 		if _, err := config.ValidateAAConfig("ethereum-mainnet", true); err != nil {
 			return err
 		}
@@ -767,7 +767,7 @@ func resolveAppNetwork(network string) string {
 	value := strings.TrimSpace(strings.ToLower(network))
 	switch value {
 	case "", "default":
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("POCKET_APP_ENV")), "production") {
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("EXPO_PUBLIC_POCKET_APP_ENV")), "production") {
 			return "ethereum-mainnet"
 		}
 		return "ethereum-sepolia"

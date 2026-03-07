@@ -93,7 +93,7 @@ func ValidateAAConfig(network string, requirePaymaster bool) (Deployment, error)
 
 func envName(network string, kind string) string {
 	name := strings.ToUpper(strings.ReplaceAll(network, "-", "_"))
-	return "POCKET_" + kind + "_" + name
+	return "EXPO_PUBLIC_POCKET_" + kind + "_" + name
 }
 
 func GetOwnerCreationMinGasWei(network string) *big.Int {

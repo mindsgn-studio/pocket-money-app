@@ -52,8 +52,8 @@ func NewBundlerClient(url string) *BundlerClient {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		maxRetries:  envInt("POCKET_BUNDLER_RETRY_MAX_ATTEMPTS", envInt("POCKET_BUNDLER_RETRY_MAX", 2)),
-		baseBackoff: time.Duration(envInt("POCKET_BUNDLER_RETRY_BACKOFF_MS", 250)) * time.Millisecond,
+		maxRetries:  envInt("EXPO_PUBLIC_POCKET_BUNDLER_RETRY_MAX_ATTEMPTS", envInt("EXPO_PUBLIC_POCKET_BUNDLER_RETRY_MAX", 2)),
+		baseBackoff: time.Duration(envInt("EXPO_PUBLIC_POCKET_BUNDLER_RETRY_BACKOFF_MS", 250)) * time.Millisecond,
 	}
 }
 
