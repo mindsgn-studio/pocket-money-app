@@ -551,6 +551,7 @@ func (d *DB) UpdateTransactionSettlement(ctx context.Context, txHash string, sta
 	return err
 }
 
+<<<<<<< HEAD
 func (d *DB) UpdateUserOperationSettlement(ctx context.Context, userOpHash string, finalTxHash string, state string, bundlerStatus string) error {
 	if d == nil || d.db == nil {
 		return errors.New("database is not initialized")
@@ -585,6 +586,8 @@ func (d *DB) UpdateUserOperationSettlement(ctx context.Context, userOpHash strin
 	return err
 }
 
+=======
+>>>>>>> 2c300523feab5fb460405ebae84d31bb5c6427a4
 func (d *DB) RecordSponsoredOperation(ctx context.Context, item SponsoredOperation) error {
 	if d == nil || d.db == nil {
 		return errors.New("database is not initialized")

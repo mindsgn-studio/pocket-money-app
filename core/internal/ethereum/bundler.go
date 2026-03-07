@@ -8,17 +8,25 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+<<<<<<< HEAD
 	"os"
 	"strconv"
+=======
+>>>>>>> 2c300523feab5fb460405ebae84d31bb5c6427a4
 	"strings"
 	"time"
 )
 
 type BundlerClient struct {
+<<<<<<< HEAD
 	url         string
 	httpClient  *http.Client
 	maxRetries  int
 	baseBackoff time.Duration
+=======
+	url        string
+	httpClient *http.Client
+>>>>>>> 2c300523feab5fb460405ebae84d31bb5c6427a4
 }
 
 type userOpReceipt struct {
@@ -52,8 +60,11 @@ func NewBundlerClient(url string) *BundlerClient {
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+<<<<<<< HEAD
 		maxRetries:  envInt("EXPO_PUBLIC_POCKET_BUNDLER_RETRY_MAX_ATTEMPTS", envInt("EXPO_PUBLIC_POCKET_BUNDLER_RETRY_MAX", 2)),
 		baseBackoff: time.Duration(envInt("EXPO_PUBLIC_POCKET_BUNDLER_RETRY_BACKOFF_MS", 250)) * time.Millisecond,
+=======
+>>>>>>> 2c300523feab5fb460405ebae84d31bb5c6427a4
 	}
 }
 
@@ -132,6 +143,7 @@ func (b *BundlerClient) rpcCall(ctx context.Context, method string, params []any
 		return err
 	}
 
+<<<<<<< HEAD
 	maxAttempts := b.maxRetries + 1
 	if maxAttempts < 1 {
 		maxAttempts = 1
@@ -187,6 +199,41 @@ func (b *BundlerClient) rpcCall(ctx context.Context, method string, params []any
 	}
 
 	return lastErr
+=======
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, b.url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := b.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	payload, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("bundler rpc failed: status=%d body=%s", resp.StatusCode, string(payload))
+	}
+
+	var rpcResp rpcResponse
+	if err := json.Unmarshal(payload, &rpcResp); err != nil {
+		return err
+	}
+	if rpcResp.Error != nil {
+		return fmt.Errorf("bundler rpc error: %s", rpcResp.Error.Message)
+	}
+	if len(rpcResp.Result) == 0 || string(rpcResp.Result) == "null" {
+		return nil
+	}
+
+	return json.Unmarshal(rpcResp.Result, out)
+>>>>>>> 2c300523feab5fb460405ebae84d31bb5c6427a4
 }
 
 func parseHexBig(value string) (*big.Int, error) {
@@ -201,6 +248,7 @@ func parseHexBig(value string) (*big.Int, error) {
 	}
 	return parsed, nil
 }
+<<<<<<< HEAD
 
 func isRetryableBundlerError(err error) bool {
 	if err == nil {
@@ -227,3 +275,5 @@ func envInt(name string, fallback int) int {
 	}
 	return parsed
 }
+=======
+>>>>>>> 2c300523feab5fb460405ebae84d31bb5c6427a4

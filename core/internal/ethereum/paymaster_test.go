@@ -63,6 +63,7 @@ func TestValidateSponsoredTransfer(t *testing.T) {
 		t.Fatalf("expected per-operation cap error")
 	}
 }
+<<<<<<< HEAD
 
 func TestLoadPaymasterPolicyDailyOperationLimit(t *testing.T) {
 	t.Setenv("EXPO_PUBLIC_POCKET_PAYMASTER_DAILY_OP_LIMIT", "77")
@@ -155,3 +156,5 @@ func TestBuildSignedPaymasterAndDataUsesNetworkSpecificKey(t *testing.T) {
 		t.Fatalf("expected 85 bytes, got %d", len(result))
 	}
 }
+=======
+>>>>>>> 2c300523feab5fb460405ebae84d31bb5c6427a4

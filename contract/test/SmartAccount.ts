@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
+<<<<<<< HEAD
 import { parseEther, getAddress, encodeFunctionData, keccak256, toHex } from "viem";
+=======
+import { parseEther, getAddress, encodeFunctionData } from "viem";
+>>>>>>> 2c300523feab5fb460405ebae84d31bb5c6427a4
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -453,6 +457,7 @@ describe("SmartAccount System", async function () {
   });
 
   // =========================================================================
+<<<<<<< HEAD
   // validateUserOp
   // =========================================================================
 
@@ -539,6 +544,8 @@ describe("SmartAccount System", async function () {
   });
 
   // =========================================================================
+=======
+>>>>>>> 2c300523feab5fb460405ebae84d31bb5c6427a4
   // 2D Nonce
   // =========================================================================
 
