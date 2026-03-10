@@ -82,3 +82,10 @@ go run ./cmd/wallet-test \
 This means `EXPO_PUBLIC_POCKET_BUNDLER_URL_ETHEREUM_SEPOLIA` points at a normal RPC endpoint.
 Use a real bundler endpoint (must support `eth_sendUserOperation` / `eth_estimateUserOperationGas`).
 
+## About `--reset-db` vs stable key material
+
+The wallet DB is SQLCipher-encrypted and stored at `${data-dir}/wallet.db`.
+
+- If you want a **fresh test wallet every run**, pass `--reset-db`. This deletes `wallet.db` before initializing, so the CLI can generate new encryption key material automatically.
+- If you want a **persistent wallet DB** (re-run the CLI and keep the same wallet), you must reuse the **same** `--master-key-b64` and `--kdf-salt-b64` you used when the DB was first created. If you change either (or let the CLI auto-generate new ones), SQLCipher won’t be able to decrypt the existing DB and you’ll see errors like `file is not a database`.
+

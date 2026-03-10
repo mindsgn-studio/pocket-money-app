@@ -12,9 +12,10 @@ import { useRouter } from 'expo-router';
 import PocketCore from "@/modules/pocket-module";
 import { Directory, Paths } from 'expo-file-system';
 import useWallet, { AAReadiness, SmartAccountCreationReadiness, WalletTransaction } from '@/@src/store/wallet';
+import { pocketBackend } from '@/@src/lib/api/pocketBackend';
 
 const PIN_LENGTH = 5;
-const DEFAULT_NETWORK: 'ethereum-mainnet' | 'ethereum-sepolia' = process.env.EXPO_PUBLIC_APP_ENV === 'production' ? 'ethereum-mainnet' : 'ethereum-sepolia';
+const DEFAULT_NETWORK = 'ethereum-sepolia' // 'ethereum-mainnet' //  | 'ethereum-sepolia' = process.env.EXPO_PUBLIC_APP_ENV === 'production' ? 'ethereum-mainnet' : 'ethereum-sepolia';
 
 export default function PinScreen() {
   const {
@@ -46,7 +47,7 @@ export default function PinScreen() {
     const reasons = readiness.failureReasons?.join(', ') || 'unknown';
     const minWei = readiness.ownerRequiredMinGasWei || '0';
     const ethHint = formatWeiHint(minWei);
-    return `Cannot create wallet yet. Reasons: ${reasons}. Fund your owner wallet with at least ${minWei} wei ${ethHint} or enable sponsored creation.`;
+    return `Cannot create wallet yet. Reasons: ${reasons}. Sponsored creation must be enabled and available.`;
   };
 
   const onPressNumber = async (value: string) => {
@@ -71,6 +72,61 @@ export default function PinScreen() {
       const walletAddress = await PocketCore.openOrCreateWallet('Main Wallet');
       setWalletAddress(walletAddress);
 
+      if (!pocketBackend.isConfigured()) {
+        throw new Error('Sponsored-only mode requires backend configuration (EXPO_PUBLIC_POCKET_BACKEND_BASE_URL)');
+      }
+
+      setStatus('Checking backend creation readiness...');
+      const backendReadiness = await pocketBackend.getCreationReadiness(DEFAULT_NETWORK, walletAddress);
+      console.log(backendReadiness)
+      setCreationReadiness(backendReadiness);
+
+      if (!backendReadiness.canUseSponsoredCreate) {
+        throw new Error(preflightMessage(backendReadiness));
+      }
+
+      setStatus('Preparing sponsored smart-account operation...');
+      const prepared = await pocketBackend.createSponsoredSmartAccount(DEFAULT_NETWORK, walletAddress);
+      console.log(prepared)
+
+      if (!prepared.userOperation || !prepared.entryPointAddress) {
+        throw new Error('Backend did not return required user operation payload');
+      }
+
+      setStatus('Signing sponsored operation on device...');
+      const signedRaw = await PocketCore.signUserOperationPayload(
+        DEFAULT_NETWORK,
+        prepared.entryPointAddress,
+        JSON.stringify(prepared.userOperation),
+      );
+      const signed = JSON.parse(signedRaw) as {
+        userOpHash?: string;
+        userOperation?: typeof prepared.userOperation;
+      };
+
+      if (!signed.userOperation) {
+        throw new Error('Failed to sign sponsored user operation payload on device');
+      }
+
+      setStatus('Submitting sponsored operation...');
+      const submitted = await pocketBackend.submitSponsoredUserOperation({
+        network: DEFAULT_NETWORK,
+        entryPointAddress: prepared.entryPointAddress,
+        userOperation: signed.userOperation,
+      });
+      console.log(submitted)
+
+      setStatus('Waiting for smart-account deployment...');
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const poll = await pocketBackend.getCreationReadiness(DEFAULT_NETWORK, walletAddress);
+        setCreationReadiness(poll);
+        if (poll.smartAccountExists && poll.smartAccountAddress) {
+          setSmartAccountAddress(poll.smartAccountAddress);
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
       const creationRaw = await PocketCore.getSmartAccountCreationReadiness(DEFAULT_NETWORK);
       console.log("Creation readiness", creationRaw);
       const creationReadiness = JSON.parse(creationRaw) as SmartAccountCreationReadiness;
@@ -78,11 +134,6 @@ export default function PinScreen() {
       if (!creationReadiness.isReady && !creationReadiness.smartAccountExists) {
         throw new Error(preflightMessage(creationReadiness));
       }
-
-      setStatus('Creating smart account...');
-      const accountRaw = await PocketCore.createSmartContractAccount(DEFAULT_NETWORK);
-      const accountPayload = JSON.parse(accountRaw) as { accountAddress?: string };
-      setSmartAccountAddress(accountPayload.accountAddress || '');
 
       const refreshedCreationRaw = await PocketCore.getSmartAccountCreationReadiness(DEFAULT_NETWORK);
       const refreshedCreationReadiness = JSON.parse(refreshedCreationRaw) as SmartAccountCreationReadiness;
@@ -108,8 +159,9 @@ export default function PinScreen() {
       if (!readiness.sponsorshipReady) {
         setStatus('Wallet ready. Sponsored mode unavailable until bundler/paymaster config is set.');
       }
-
+      
       router.replace("/(home)")
+
     } catch (error) {
       router.replace({
         pathname: "/error",

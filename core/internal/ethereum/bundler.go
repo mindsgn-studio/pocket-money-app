@@ -19,6 +19,12 @@ type BundlerClient struct {
 	httpClient *http.Client
 }
 
+type Bundler interface {
+	EstimateUserOperationGas(ctx context.Context, op UserOperation, entryPointAddress string) (UserOperationGasEstimate, error)
+	SendUserOperation(ctx context.Context, op UserOperation, entryPointAddress string) (string, error)
+	GetUserOperationReceipt(ctx context.Context, userOpHash string) (*userOpReceipt, error)
+}
+
 type userOpReceipt struct {
 	UserOpHash      string `json:"userOpHash"`
 	TransactionHash string `json:"transactionHash"`
@@ -65,7 +71,13 @@ func (b *BundlerClient) EstimateUserOperationGas(ctx context.Context, op UserOpe
 	}
 
 	if err := b.rpcCall(ctx, "eth_estimateUserOperationGas", []any{op.ToBundlerMap(), entryPointAddress}, &result); err != nil {
-		return UserOperationGasEstimate{}, err
+		if shouldRetryWithV07(err) {
+			if errV07 := b.rpcCall(ctx, "eth_estimateUserOperationGas", []any{op.ToBundlerMapV07(), entryPointAddress}, &result); errV07 != nil {
+				return UserOperationGasEstimate{}, errV07
+			}
+		} else {
+			return UserOperationGasEstimate{}, err
+		}
 	}
 
 	preVG, err := parseHexBig(result.PreVerificationGas)
@@ -95,7 +107,13 @@ func (b *BundlerClient) SendUserOperation(ctx context.Context, op UserOperation,
 
 	var userOpHash string
 	if err := b.rpcCall(ctx, "eth_sendUserOperation", []any{op.ToBundlerMap(), entryPointAddress}, &userOpHash); err != nil {
-		return "", err
+		if shouldRetryWithV07(err) {
+			if errV07 := b.rpcCall(ctx, "eth_sendUserOperation", []any{op.ToBundlerMapV07(), entryPointAddress}, &userOpHash); errV07 != nil {
+				return "", errV07
+			}
+		} else {
+			return "", err
+		}
 	}
 
 	return strings.TrimSpace(userOpHash), nil
@@ -220,4 +238,25 @@ func envInt(name string, fallback int) int {
 	}
 
 	return parsed
+}
+
+func shouldRetryWithV07(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	if msg == "" {
+		return false
+	}
+
+	// Some bundlers return explicit version mismatch strings.
+	if strings.Contains(msg, "received v0.6 user operation payload") && strings.Contains(msg, "entry point version is v0_7") {
+		return true
+	}
+	// Others return schema validation errors when they expect v0.7 fields like
+	// factory/factoryData and paymaster/paymasterData rather than initCode/paymasterAndData.
+	if strings.Contains(msg, "unrecognized keys") && (strings.Contains(msg, "\"initcode\"") || strings.Contains(msg, "\"paymasteranddata\"")) {
+		return true
+	}
+	return false
 }

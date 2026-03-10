@@ -3,6 +3,8 @@ package ethereum
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -117,6 +119,50 @@ type SendResult struct {
 	Sponsored     bool   `json:"sponsored"`
 	Network       string `json:"network"`
 	Token         string `json:"token"`
+}
+
+type UserOpDiagnostics struct {
+	Network              string `json:"network"`
+	EntryPoint           string `json:"entryPoint"`
+	Sender               string `json:"sender"`
+	Nonce                string `json:"nonce"`
+	InitCodeLen          int    `json:"initCodeLen"`
+	InitCodeHash         string `json:"initCodeHash"`
+	CallDataLen          int    `json:"callDataLen"`
+	CallDataHash         string `json:"callDataHash"`
+	CallGasLimit         string `json:"callGasLimit"`
+	VerificationGasLimit string `json:"verificationGasLimit"`
+	PreVerificationGas   string `json:"preVerificationGas"`
+	MaxFeePerGas         string `json:"maxFeePerGas"`
+	MaxPriorityFeePerGas string `json:"maxPriorityFeePerGas"`
+	PaymasterAddress     string `json:"paymasterAddress"`
+	PaymasterAndDataLen  int    `json:"paymasterAndDataLen"`
+	PaymasterAndDataHash string `json:"paymasterAndDataHash"`
+	SignatureLen         int    `json:"signatureLen"`
+	SignatureHash        string `json:"signatureHash"`
+}
+
+type BundlerSubmissionError struct {
+	Cause       error
+	Diagnostics UserOpDiagnostics
+}
+
+func (e *BundlerSubmissionError) Error() string {
+	if e == nil {
+		return ""
+	}
+	payload, _ := json.Marshal(e.Diagnostics)
+	if e.Cause == nil {
+		return fmt.Sprintf("bundler submission failed | diagnostics=%s", string(payload))
+	}
+	return fmt.Sprintf("%s | diagnostics=%s", e.Cause.Error(), string(payload))
+}
+
+func (e *BundlerSubmissionError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
 }
 
 type SmartAccountCreationReadiness struct {
@@ -415,8 +461,9 @@ func CreateOrGetSmartAccount(ctx context.Context, db *database.DB, network strin
 		}
 	}
 
-	if !readiness.CanUseSponsoredCreate && !readiness.HasSufficientOwnerBalance {
-		return "", "", fmt.Errorf("wallet creation blocked: insufficient owner gas and sponsorship unavailable; fund owner wallet with at least %s wei", readiness.OwnerRequiredMinGasWei)
+	// Sponsored-only: smart-account creation must be sponsored; never fall back to direct tx creation.
+	if !readiness.CanUseSponsoredCreate {
+		return "", "", errors.New("sponsored smart-account creation is unavailable")
 	}
 
 	privateKey, err := crypto.ToECDSA(owner.PrivateKey)
@@ -424,50 +471,17 @@ func CreateOrGetSmartAccount(ctx context.Context, db *database.DB, network strin
 		return "", "", err
 	}
 
-	if readiness.CanUseSponsoredCreate {
-		if userOpHash, createErr := createSmartAccountViaUserOperation(ctx, db, client, network, networkConfig, deployment, owner, ownerAddress, predicted, privateKey); createErr == nil {
-			if upsertErr := db.UpsertSmartAccount(ctx, owner.Address, network, predicted.Hex()); upsertErr != nil {
-				return "", "", upsertErr
-			}
-			return owner.Address, predicted.Hex(), nil
-		} else if !readiness.HasSufficientOwnerBalance {
-			return "", "", fmt.Errorf("wallet creation blocked: sponsored deployment failed and owner wallet has insufficient gas (%s wei required): %w", readiness.OwnerRequiredMinGasWei, createErr)
-		} else {
-			_ = userOpHash
+	if userOpHash, createErr := createSmartAccountViaUserOperation(ctx, db, client, network, networkConfig, deployment, owner, ownerAddress, predicted, privateKey); createErr == nil {
+		if upsertErr := db.UpsertSmartAccount(ctx, owner.Address, network, predicted.Hex()); upsertErr != nil {
+			return "", "", upsertErr
 		}
-	}
-
-	code, err := clientCodeAt(ctx, client, predicted)
-	if err != nil {
-		return "", "", err
-	}
-	if len(code) > 0 {
-		if err := db.UpsertSmartAccount(ctx, owner.Address, network, predicted.Hex()); err != nil {
-			return "", "", err
-		}
+		_ = userOpHash
 		return owner.Address, predicted.Hex(), nil
+	} else {
+		return "", "", createErr
 	}
 
-	chainID := big.NewInt(int64(networkConfig.ChainID))
-	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
-	if err != nil {
-		return "", "", err
-	}
-	auth.Context = ctx
-
-	if readiness.EntryPointAddress != "" {
-		if _, err := factory.CreateAccountWithEntryPoint(auth, ownerAddress, common.HexToAddress(readiness.EntryPointAddress)); err != nil {
-			return "", "", err
-		}
-	} else if _, err := factory.CreateAccount(auth, ownerAddress); err != nil {
-		return "", "", err
-	}
-
-	if err := db.UpsertSmartAccount(ctx, owner.Address, network, predicted.Hex()); err != nil {
-		return "", "", err
-	}
-
-	return owner.Address, predicted.Hex(), nil
+	// Unreachable.
 }
 
 func CheckSmartAccountCreationReadiness(ctx context.Context, db *database.DB, network string) (SmartAccountCreationReadiness, error) {
@@ -773,7 +787,7 @@ func SendToken(
 	note string,
 	providerID string,
 ) (string, error) {
-	result, err := SendTokenWithMode(ctx, db, network, tokenIdentifier, recipientAddress, amount, note, providerID, SendModeAuto)
+	result, err := SendTokenWithMode(ctx, db, network, tokenIdentifier, recipientAddress, amount, note, providerID, SendModeSponsored)
 	if err != nil {
 		return "", err
 	}
@@ -796,6 +810,10 @@ func SendTokenWithMode(
 ) (SendResult, error) {
 	if db == nil {
 		return SendResult{}, errors.New("database is required")
+	}
+	mode := ResolveSendMode(sendMode)
+	if mode != SendModeSponsored {
+		return SendResult{}, errors.New("sponsored_only_mode_enforced")
 	}
 	if recipientAddress == "" {
 		return SendResult{}, errors.New("recipient address is required")
@@ -886,23 +904,11 @@ func SendTokenWithMode(
 		return SendResult{}, err
 	}
 
-	mode := ResolveSendMode(sendMode)
-	if mode != SendModeDirect {
-		aaResult, aaErr := sendTokenViaUserOperation(ctx, db, client, network, networkConfig, sender, smartAccount, recipientAddress, token, amountUnits, callData, note, providerID, mode, privateKey)
-		if aaErr == nil {
-			return aaResult, nil
-		}
-		if mode == SendModeSponsored {
-			return SendResult{}, aaErr
-		}
+	aaResult, aaErr := sendTokenViaUserOperation(ctx, db, client, network, networkConfig, sender, smartAccount, recipientAddress, token, amountUnits, callData, note, providerID, mode, privateKey)
+	if aaErr != nil {
+		return SendResult{}, aaErr
 	}
-
-	directResult, err := sendTokenDirect(ctx, db, client, network, networkConfig, sender, smartAccount, recipientAddress, token, amountUnits, callData, note, providerID, privateKey)
-	if err != nil {
-		return SendResult{}, err
-	}
-
-	return directResult, nil
+	return aaResult, nil
 }
 
 func sendTokenDirect(
@@ -1026,7 +1032,7 @@ func sendTokenViaUserOperation(
 	}
 
 	entryPointAddress := common.HexToAddress(deployment.EntryPointAddress)
-	nonceData, err := entryPointABI.Pack("getNonce", smartAccount, uint64(0))
+	nonceData, err := entryPointABI.Pack("getNonce", smartAccount, big.NewInt(0))
 	if err != nil {
 		return SendResult{}, err
 	}
@@ -1043,13 +1049,9 @@ func sendTokenViaUserOperation(
 		return SendResult{}, errors.New("invalid nonce type")
 	}
 
-	gasPrice, err := client.SuggestGasPrice(ctx)
+	gasPrice, priorityFee, err := ResolveUserOpFeeCaps(ctx, client)
 	if err != nil {
 		return SendResult{}, err
-	}
-	priorityFee := new(big.Int).Div(gasPrice, big.NewInt(4))
-	if priorityFee.Sign() == 0 {
-		priorityFee = big.NewInt(1)
 	}
 
 	op := UserOperation{
@@ -1213,13 +1215,9 @@ func createSmartAccountViaUserOperation(
 	}
 	initCode := append(factoryAddress.Bytes(), initCallData...)
 
-	gasPrice, err := client.SuggestGasPrice(ctx)
+	gasPrice, priorityFee, err := ResolveUserOpFeeCaps(ctx, client)
 	if err != nil {
 		return "", err
-	}
-	priorityFee := new(big.Int).Div(gasPrice, big.NewInt(4))
-	if priorityFee.Sign() == 0 {
-		priorityFee = big.NewInt(1)
 	}
 
 	op := UserOperation{
@@ -1242,14 +1240,47 @@ func createSmartAccountViaUserOperation(
 	op.PaymasterAndData = paymasterAndData
 
 	bundler := NewBundlerClient(aaDeployment.BundlerURL)
+	return submitSmartAccountCreateUserOperation(
+		ctx,
+		db,
+		network,
+		deployment,
+		sender,
+		ownerAddress,
+		predicted,
+		entryPointAddress,
+		networkConfig.ChainID,
+		op,
+		privateKey,
+		bundler,
+	)
+}
+
+func submitSmartAccountCreateUserOperation(
+	ctx context.Context,
+	db *database.DB,
+	network string,
+	deployment config.Deployment,
+	sender database.WalletSecret,
+	ownerAddress common.Address,
+	predicted common.Address,
+	entryPointAddress common.Address,
+	chainID int,
+	op UserOperation,
+	privateKey *ecdsa.PrivateKey,
+	bundler Bundler,
+) (string, error) {
 	logs.LogError(fmt.Sprintf("aa_create_start network=%s sender=%s", network, predicted.Hex()))
 	if estimate, err := bundler.EstimateUserOperationGas(ctx, op, entryPointAddress.Hex()); err == nil {
 		op.PreVerificationGas = estimate.PreVerificationGas
 		op.VerificationGasLimit = estimate.VerificationGasLimit
 		op.CallGasLimit = estimate.CallGasLimit
+	} else {
+		diag := buildUserOpDiagnostics(network, entryPointAddress, op)
+		logs.LogError(fmt.Sprintf("aa_create_estimate_error network=%s sender=%s err=%s diagnostics=%s", network, predicted.Hex(), err.Error(), diag.String()))
 	}
 
-	signature, userOpHash, err := SignUserOperation(op, entryPointAddress, big.NewInt(int64(networkConfig.ChainID)), privateKey)
+	signature, userOpHash, err := SignUserOperation(op, entryPointAddress, big.NewInt(int64(chainID)), privateKey)
 	if err != nil {
 		return "", err
 	}
@@ -1257,8 +1288,9 @@ func createSmartAccountViaUserOperation(
 
 	sentUserOpHash, err := bundler.SendUserOperation(ctx, op, entryPointAddress.Hex())
 	if err != nil {
-		logs.LogError(fmt.Sprintf("aa_create_error network=%s sender=%s err=%s", network, predicted.Hex(), err.Error()))
-		return "", err
+		diag := buildUserOpDiagnostics(network, entryPointAddress, op)
+		logs.LogError(fmt.Sprintf("aa_create_error network=%s sender=%s err=%s diagnostics=%s", network, predicted.Hex(), err.Error(), diag.String()))
+		return "", &BundlerSubmissionError{Cause: err, Diagnostics: diag}
 	}
 	if strings.TrimSpace(sentUserOpHash) == "" {
 		sentUserOpHash = userOpHash.Hex()
@@ -1302,6 +1334,44 @@ func createSmartAccountViaUserOperation(
 	logs.LogError(fmt.Sprintf("aa_create_submitted network=%s userOpHash=%s sender=%s", network, sentUserOpHash, predicted.Hex()))
 
 	return sentUserOpHash, nil
+}
+
+func buildUserOpDiagnostics(network string, entryPoint common.Address, op UserOperation) UserOpDiagnostics {
+	paymasterAddress := ""
+	if len(op.PaymasterAndData) >= common.AddressLength {
+		paymasterAddress = common.BytesToAddress(op.PaymasterAndData[:common.AddressLength]).Hex()
+	}
+
+	return UserOpDiagnostics{
+		Network:              network,
+		EntryPoint:           entryPoint.Hex(),
+		Sender:               op.Sender.Hex(),
+		Nonce:                nilBig(op.Nonce).String(),
+		InitCodeLen:          len(op.InitCode),
+		InitCodeHash:         hashBytes(op.InitCode),
+		CallDataLen:          len(op.CallData),
+		CallDataHash:         hashBytes(op.CallData),
+		CallGasLimit:         nilBig(op.CallGasLimit).String(),
+		VerificationGasLimit: nilBig(op.VerificationGasLimit).String(),
+		PreVerificationGas:   nilBig(op.PreVerificationGas).String(),
+		MaxFeePerGas:         nilBig(op.MaxFeePerGas).String(),
+		MaxPriorityFeePerGas: nilBig(op.MaxPriorityFeePerGas).String(),
+		PaymasterAddress:     paymasterAddress,
+		PaymasterAndDataLen:  len(op.PaymasterAndData),
+		PaymasterAndDataHash: hashBytes(op.PaymasterAndData),
+		SignatureLen:         len(op.Signature),
+		SignatureHash:        hashBytes(op.Signature),
+	}
+}
+
+func (d UserOpDiagnostics) String() string {
+	payload, _ := json.Marshal(d)
+	return string(payload)
+}
+
+func hashBytes(value []byte) string {
+	h := sha256.Sum256(value)
+	return "0x" + hex.EncodeToString(h[:])
 }
 
 func SyncTransactionStatus(ctx context.Context, txHash string, network string) (string, error) {

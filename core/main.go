@@ -7,13 +7,17 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
+	"math/big"
 	"os"
 	"strings"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/mindsgn-studio/pocket-money-app/core/internal/config"
 	"github.com/mindsgn-studio/pocket-money-app/core/internal/database"
 	"github.com/mindsgn-studio/pocket-money-app/core/internal/ethereum"
@@ -132,6 +136,25 @@ type walletBackup struct {
 type backupPayload struct {
 	Version int            `json:"version"`
 	Wallets []walletBackup `json:"wallets"`
+}
+
+type userOperationPayload struct {
+	Sender               string `json:"sender"`
+	Nonce                string `json:"nonce"`
+	InitCode             string `json:"initCode"`
+	CallData             string `json:"callData"`
+	CallGasLimit         string `json:"callGasLimit"`
+	VerificationGasLimit string `json:"verificationGasLimit"`
+	PreVerificationGas   string `json:"preVerificationGas"`
+	MaxFeePerGas         string `json:"maxFeePerGas"`
+	MaxPriorityFeePerGas string `json:"maxPriorityFeePerGas"`
+	PaymasterAndData     string `json:"paymasterAndData"`
+	Signature            string `json:"signature"`
+}
+
+type signUserOperationResponse struct {
+	UserOperation userOperationPayload `json:"userOperation"`
+	UserOpHash    string               `json:"userOpHash"`
 }
 
 type WalletCore struct {
@@ -503,7 +526,7 @@ func (w *WalletCore) SendUsdcWithMode(network string, destination string, amount
 }
 
 func (w *WalletCore) SendToken(network string, tokenIdentifier string, destination string, amount string, note string, providerID string) (string, error) {
-	resultJSON, err := w.SendTokenWithMode(network, tokenIdentifier, destination, amount, note, providerID, ethereum.SendModeAuto)
+	resultJSON, err := w.SendTokenWithMode(network, tokenIdentifier, destination, amount, note, providerID, ethereum.SendModeSponsored)
 	if err != nil {
 		return "", err
 	}
@@ -539,6 +562,69 @@ func (w *WalletCore) SendTokenWithMode(network string, tokenIdentifier string, d
 		Sponsored:     result.Sponsored,
 		Network:       result.Network,
 		Token:         result.Token,
+	}
+
+	encoded, err := json.Marshal(out)
+	if err != nil {
+		return "", err
+	}
+
+	return string(encoded), nil
+}
+
+func (w *WalletCore) SignUserOperationPayload(network string, entryPointAddress string, userOperationJSON string) (string, error) {
+	db, err := w.getDB()
+	if err != nil {
+		return "", err
+	}
+
+	var payload userOperationPayload
+	if err := json.Unmarshal([]byte(userOperationJSON), &payload); err != nil {
+		return "", err
+	}
+	if !common.IsHexAddress(strings.TrimSpace(payload.Sender)) {
+		return "", errors.New("invalid user operation sender")
+	}
+	if !common.IsHexAddress(strings.TrimSpace(entryPointAddress)) {
+		return "", errors.New("invalid entry point address")
+	}
+
+	op, err := parseUserOperationPayload(payload)
+	if err != nil {
+		return "", err
+	}
+
+	walletSecrets, err := db.ListWalletSecrets(context.Background())
+	if err != nil {
+		return "", err
+	}
+	if len(walletSecrets) == 0 {
+		return "", errors.New("no wallet found")
+	}
+
+	privateKey, err := crypto.ToECDSA(walletSecrets[0].PrivateKey)
+	if err != nil {
+		return "", err
+	}
+
+	resolvedNetwork := resolveAppNetwork(network)
+	networkConfig := ethereum.GetNetwork(resolvedNetwork)
+	if networkConfig.ChainID == 0 {
+		return "", errors.New("unsupported network")
+	}
+
+	entryPoint := common.HexToAddress(strings.TrimSpace(entryPointAddress))
+	chainID := big.NewInt(int64(networkConfig.ChainID))
+	signature, userOpHash, err := ethereum.SignUserOperation(op, entryPoint, chainID, privateKey)
+	if err != nil {
+		return "", err
+	}
+
+	payload.Signature = encodeHex(signature)
+
+	out := signUserOperationResponse{
+		UserOperation: payload,
+		UserOpHash:    userOpHash.Hex(),
 	}
 
 	encoded, err := json.Marshal(out)
@@ -789,4 +875,92 @@ func (w *WalletCore) getDB() (*database.DB, error) {
 	}
 
 	return w.db, nil
+}
+
+func parseUserOperationPayload(payload userOperationPayload) (ethereum.UserOperation, error) {
+	nonce, err := parseHexBig(payload.Nonce)
+	if err != nil {
+		return ethereum.UserOperation{}, err
+	}
+	callGasLimit, err := parseHexBig(payload.CallGasLimit)
+	if err != nil {
+		return ethereum.UserOperation{}, err
+	}
+	verificationGasLimit, err := parseHexBig(payload.VerificationGasLimit)
+	if err != nil {
+		return ethereum.UserOperation{}, err
+	}
+	preVerificationGas, err := parseHexBig(payload.PreVerificationGas)
+	if err != nil {
+		return ethereum.UserOperation{}, err
+	}
+	maxFeePerGas, err := parseHexBig(payload.MaxFeePerGas)
+	if err != nil {
+		return ethereum.UserOperation{}, err
+	}
+	maxPriorityFeePerGas, err := parseHexBig(payload.MaxPriorityFeePerGas)
+	if err != nil {
+		return ethereum.UserOperation{}, err
+	}
+	initCode, err := parseHexBytes(payload.InitCode)
+	if err != nil {
+		return ethereum.UserOperation{}, err
+	}
+	callData, err := parseHexBytes(payload.CallData)
+	if err != nil {
+		return ethereum.UserOperation{}, err
+	}
+	paymasterAndData, err := parseHexBytes(payload.PaymasterAndData)
+	if err != nil {
+		return ethereum.UserOperation{}, err
+	}
+	signature, err := parseHexBytes(payload.Signature)
+	if err != nil {
+		return ethereum.UserOperation{}, err
+	}
+
+	return ethereum.UserOperation{
+		Sender:               common.HexToAddress(strings.TrimSpace(payload.Sender)),
+		Nonce:                nonce,
+		InitCode:             initCode,
+		CallData:             callData,
+		CallGasLimit:         callGasLimit,
+		VerificationGasLimit: verificationGasLimit,
+		PreVerificationGas:   preVerificationGas,
+		MaxFeePerGas:         maxFeePerGas,
+		MaxPriorityFeePerGas: maxPriorityFeePerGas,
+		PaymasterAndData:     paymasterAndData,
+		Signature:            signature,
+	}, nil
+}
+
+func parseHexBig(value string) (*big.Int, error) {
+	trimmed := strings.TrimPrefix(strings.TrimSpace(value), "0x")
+	if trimmed == "" {
+		return big.NewInt(0), nil
+	}
+	parsed := new(big.Int)
+	if _, ok := parsed.SetString(trimmed, 16); !ok {
+		return nil, errors.New("invalid hex integer")
+	}
+	return parsed, nil
+}
+
+func parseHexBytes(value string) ([]byte, error) {
+	trimmed := strings.TrimPrefix(strings.TrimSpace(value), "0x")
+	if trimmed == "" {
+		return []byte{}, nil
+	}
+	decoded, err := hex.DecodeString(trimmed)
+	if err != nil {
+		return nil, err
+	}
+	return decoded, nil
+}
+
+func encodeHex(value []byte) string {
+	if len(value) == 0 {
+		return "0x"
+	}
+	return "0x" + hex.EncodeToString(value)
 }
