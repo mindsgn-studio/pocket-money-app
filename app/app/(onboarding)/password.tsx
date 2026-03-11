@@ -10,82 +10,54 @@ import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import PocketCore from '@/modules/pocket-module';
 import { Directory, Paths } from 'expo-file-system';
-import useWallet, { WalletTransaction } from '@/@src/store/wallet';
+import useWallet from '@/@src/store/wallet';
 
 const PIN_LENGTH = 5;
-const DEFAULT_NETWORK: 'ethereum-mainnet' | 'ethereum-sepolia' = process.env.EXPO_PUBLIC_APP_ENV === 'production' ? 'ethereum-mainnet' : 'ethereum-sepolia';
+const DEFAULT_NETWORK: 'ethereum-mainnet' | 'ethereum-sepolia' =
+  process.env.EXPO_PUBLIC_APP_ENV === 'production' ? 'ethereum-mainnet' : 'ethereum-sepolia';
 
 export default function PasswordScreen() {
-  const {
-    setWalletAddress,
-    setTransactions,
-    clearWalletState,
-  } = useWallet();
+  const { setWalletAddress, setNetwork, clearWalletState } = useWallet();
   const [confirmationPin, setConfirmationPin] = useState<string[]>([]);
   const [status, setStatus] = useState('');
 
   const onPressNumber = async (value: string) => {
     if (confirmationPin.length >= PIN_LENGTH) return;
-
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setConfirmationPin((p) => [...p, value]);
   };
 
   const onDelete = async () => {
     if (confirmationPin.length === 0) return;
-
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setConfirmationPin((p) => p.slice(0, -1));
   };
 
-  const getData = async(password: string) => {
-    try{
+  const unlock = async () => {
+    try {
       setStatus('Unlocking wallet...');
       const dataDir = new Directory(Paths.document);
-      await PocketCore.initWalletSecure(dataDir.uri, password)
+      // initWalletSecure manages key material via iOS Keychain — no password arg needed
+      await PocketCore.initWalletSecure(dataDir.uri);
       const walletAddress = await PocketCore.openOrCreateWallet('Main Wallet');
       setWalletAddress(walletAddress);
+      setNetwork(DEFAULT_NETWORK);
 
-      await PocketCore.syncInboundTransactions(DEFAULT_NETWORK);
-      const txTransacttionResponse = await PocketCore.listAllTransactions(DEFAULT_NETWORK, 100, 0);
-      const transactions = JSON.parse(txTransacttionResponse) as WalletTransaction[];
-      setTransactions(Array.isArray(transactions) ? transactions : []);
-      // console.log('Transactions:', txTransacttionResponse);
-
-      // const txResponse = await PocketCore.getBalance(DEFAULT_NETWORK);
-      // console.log("Balance: " ,txResponse)
-
-      //const transactions = JSON.parse(txResponse) as WalletTransaction[];
-      //console.log('Transactions:', transactions);
-
-
-      //setTransactions(Array.isArray(transactions) ? transactions : []);
-      
-      
-      router.replace({
-        pathname: "/(home)",
-        params: {
-          password: confirmationPin.join('')
-        }
-      });
-      
-    } catch(error) {
+      router.replace('/(home)');
+    } catch (error) {
       clearWalletState();
       router.replace({
-        pathname: "/error",
-        params: {
-          title: "",
-          message: `${error}`
-        }
+        pathname: '/error',
+        params: { title: '', message: `${error}` },
       });
     }
-  }
+  };
 
   useEffect(() => {
     if (confirmationPin.length === PIN_LENGTH) {
-      const password = SecureStore.getItem("password");
+      const password = SecureStore.getItem('password');
       if (password === confirmationPin.join('')) {
-        getData(confirmationPin.join(''));
+        void unlock();
       } else {
         setStatus('Incorrect PIN. Try again.');
         setConfirmationPin([]);
@@ -95,67 +67,49 @@ export default function PasswordScreen() {
 
   const renderDot = (index: number) => {
     const filled = index < confirmationPin.length;
-
     return (
       <View
         key={index}
-        style={[
-          styles.dot,
-          filled ? styles.dotFilled : styles.dotEmpty,
-        ]}
+        style={[styles.dot, filled ? styles.dotFilled : styles.dotEmpty]}
       />
     );
   };
 
-  const renderButton = (label: string, onPress: () => void) => {
-    return (
-      <Pressable
-        key={label}
-        testID={`unlock-pin-key-${label}`}
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.key,
-          pressed && styles.keyPressed,
-        ]}
-      >
-        <Text style={styles.keyText}>{label}</Text>
-      </Pressable>
-    );
-  };
+  const renderButton = (label: string, onPress: () => void) => (
+    <Pressable
+      key={label}
+      testID={`unlock-pin-key-${label}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.key, pressed && styles.keyPressed]}
+    >
+      <Text style={styles.keyText}>{label}</Text>
+    </Pressable>
+  );
 
   return (
-    <View style={styles.container} testID="unlock-screen">
+    <View style={styles.container} testID="unlock-pin-screen">
       <View style={styles.numberContainer}>
         <Text style={styles.title}>Enter PIN</Text>
-          <View style={styles.dotsRow}>
-          {Array.from({ length: PIN_LENGTH }).map((_, i) =>
-            renderDot(i)
-          )}
+        <View style={styles.dotsRow}>
+          {Array.from({ length: PIN_LENGTH }).map((_, i) => renderDot(i))}
         </View>
+        {status ? <Text style={styles.status}>{status}</Text> : null}
       </View>
-      
+
       <View style={styles.keypad}>
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) =>
           renderButton(String(n), () => onPressNumber(String(n)))
         )}
-
         <View style={styles.keyPlaceholder} />
-
         {renderButton('0', () => onPressNumber('0'))}
-
         <Pressable
           testID="unlock-pin-delete"
           onPress={onDelete}
-          style={({ pressed }) => [
-            styles.key,
-            pressed && styles.keyPressed,
-          ]}
+          style={({ pressed }) => [styles.key, pressed && styles.keyPressed]}
         >
           <Text style={styles.keyText}>⌫</Text>
         </Pressable>
       </View>
-
-      {status ? <Text testID="unlock-status" style={styles.status}>{status}</Text> : null}
     </View>
   );
 }

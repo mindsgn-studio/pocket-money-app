@@ -3,34 +3,52 @@ import { ScrollView, StyleSheet } from 'react-native';
 import PocketCore from '@/modules/pocket-module';
 import { Directory, Paths } from 'expo-file-system';
 import useWallet from '@/@src/store/wallet';
-import { Screen, Card, Title, BodyText, Input, PrimaryButton } from '@/@src/components/Primitives';
+import type { TokenBalance } from '@/@src/store/wallet';
+import { Screen, BodyText, Input, PrimaryButton } from '@/@src/components/Primitives';
 import PinAuthSheet from '@/@src/components/PinAuthSheet';
 import { tryBiometricAuth, verifyStoredPin } from '@/@src/lib/security/sensitiveAuth';
-import { useLocalSearchParams } from 'expo-router';
 import WalletCard from '@/@src/components/wallet-card';
 
 const DEFAULT_NETWORK: 'ethereum-mainnet' | 'ethereum-sepolia' =
   process.env.EXPO_PUBLIC_APP_ENV === 'production' ? 'ethereum-mainnet' : 'ethereum-sepolia';
 
+// USDC contract addresses per network
+const USDC_ADDRESS: Record<string, string> = {
+  'ethereum-mainnet': '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+  'ethereum-sepolia': '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+};
+
 export default function Home() {
-  const { walletAddress, setWalletAddress, setBalancesJson } = useWallet();
+  const { walletAddress, setWalletAddress, setNetwork, setBalances } = useWallet();
   const [destination, setDestination] = useState('');
   const [amount, setAmount] = useState('');
   const [tokenIdentifier, setTokenIdentifier] = useState<'usdc' | 'native'>('usdc');
-  const [note, setNote] = useState('');
-  const [providerID, setProviderID] = useState('');
   const [status, setStatus] = useState('Preparing wallet...');
   const [pinPromptVisible, setPinPromptVisible] = useState(false);
   const authResolverRef = useRef<((ok: boolean) => void) | null>(null);
-  const data = useLocalSearchParams()
 
   useEffect(() => {
     const bootstrap = async () => {
       try {
         const dataDir = new Directory(Paths.document);
-        await PocketCore.initWalletSecure(dataDir.uri, data.password as string);
+        // initWalletSecure manages key material via iOS Keychain — no password arg
+        await PocketCore.initWalletSecure(dataDir.uri);
         const address = await PocketCore.openOrCreateWallet('Main Wallet');
         setWalletAddress(address);
+
+        // Register the active network and USDC token so balance/send ops work
+        const rpcURL = DEFAULT_NETWORK === 'ethereum-mainnet'
+          ? (process.env.EXPO_PUBLIC_ALCHEMY_RPC_URL_MAINNET ?? '')
+          : (process.env.EXPO_PUBLIC_ALCHEMY_RPC_URL_SEPOLIA ?? '');
+        const chainId = DEFAULT_NETWORK === 'ethereum-mainnet' ? 1 : 11155111;
+        await PocketCore.registerNetwork(DEFAULT_NETWORK, rpcURL, chainId);
+        await PocketCore.registerToken(DEFAULT_NETWORK, 'usdc', 'USDC', USDC_ADDRESS[DEFAULT_NETWORK], 6);
+
+        // Fetch balances
+        const balJson = await PocketCore.getAllBalances(DEFAULT_NETWORK);
+        const balances = JSON.parse(balJson) as TokenBalance[];
+        setBalances(Array.isArray(balances) ? balances : []);
+        setNetwork(DEFAULT_NETWORK);
         setStatus('Ready');
       } catch (error) {
         setStatus(`Init failed: ${String(error)}`);
@@ -38,7 +56,7 @@ export default function Home() {
     };
 
     bootstrap();
-  }, [setBalancesJson, setWalletAddress]);
+  }, [setWalletAddress, setNetwork, setBalances]);
 
   const onSend = async () => {
     try {
@@ -56,11 +74,7 @@ export default function Home() {
       }
 
       setStatus(`Sending ${tokenIdentifier.toUpperCase()}...`);
-      if (tokenIdentifier === 'native') {
-        await PocketCore.sendToken(DEFAULT_NETWORK, 'native', destination, amount, note, providerID);
-      } else {
-        await PocketCore.sendToken(DEFAULT_NETWORK, 'usdc', destination, amount, note, providerID);
-      }
+      await PocketCore.sendToken(DEFAULT_NETWORK, tokenIdentifier, destination, amount);
       setStatus('Transfer submitted');
     } catch (error) {
       setStatus(`Send failed: ${String(error)}`);
@@ -69,10 +83,7 @@ export default function Home() {
 
   const onPinConfirm = async (pin: string): Promise<boolean> => {
     const ok = await verifyStoredPin(pin);
-    if (!ok) {
-      return false;
-    }
-
+    if (!ok) return false;
     setPinPromptVisible(false);
     authResolverRef.current?.(true);
     authResolverRef.current = null;
@@ -89,49 +100,39 @@ export default function Home() {
     <Screen>
       <ScrollView contentContainerStyle={styles.container} testID="home-screen">
         <WalletCard />
-        
-        {/*
+
         <BodyText style={styles.section}>Transfer</BodyText>
         <Input
-        testID="token-input"
-        value={tokenIdentifier}
-        onChangeText={(value) => setTokenIdentifier(value === 'native' ? 'native' : 'usdc')}
-        placeholder="Token (usdc/native)"
-        autoCapitalize="none"
-      />
+          testID="token-input"
+          value={tokenIdentifier}
+          onChangeText={(value) => setTokenIdentifier(value === 'native' ? 'native' : 'usdc')}
+          placeholder="Token (usdc / native)"
+          autoCapitalize="none"
+        />
         <Input
-        testID="destination-input"
-        value={destination}
-        onChangeText={setDestination}
-        placeholder="Destination address"
-        autoCapitalize="none"
-      />
+          testID="destination-input"
+          value={destination}
+          onChangeText={setDestination}
+          placeholder="Destination address"
+          autoCapitalize="none"
+        />
         <Input
-        testID="amount-input"
-        value={amount}
-        onChangeText={setAmount}
-        placeholder="Amount"
-        keyboardType="decimal-pad"
-      />
-        <Input
-          testID="provider-id-input"
-          style={styles.input}
-        value={providerID}
-        onChangeText={setProviderID}
-        placeholder="Provider ID (optional)"
-        autoCapitalize="none"
-      />
+          testID="amount-input"
+          value={amount}
+          onChangeText={setAmount}
+          placeholder="Amount"
+          keyboardType="decimal-pad"
+        />
 
         <PrimaryButton label="Send" onPress={onSend} testID="send-button" />
-
         <BodyText style={styles.status} testID="send-status">{status}</BodyText>
-     
-      <PinAuthSheet
-        visible={pinPromptVisible}
-        title="Enter PIN to confirm transfer"
-        onConfirm={onPinConfirm}
-        onCancel={onPinCancel}
-      />*/}
+
+        <PinAuthSheet
+          visible={pinPromptVisible}
+          title="Enter PIN to confirm transfer"
+          onConfirm={onPinConfirm}
+          onCancel={onPinCancel}
+        />
       </ScrollView>
     </Screen>
   );

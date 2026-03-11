@@ -1,44 +1,63 @@
 import { create } from 'zustand';
 
+/** EOA on-chain transaction produced by the Go core's marshalTransactions helper. */
 export type WalletTransaction = {
   hash: string;
-  userOpHash?: string;
-  token: string;
+  fromAddress: string;
+  toAddress: string;
+  tokenSymbol: string;
   amount: string;
+  feeEth: string;
+  network: string;
+  mode: string;
+  direction: 'credit' | 'debit';
   state: string;
-  mode?: string;
-  sponsorshipMode?: string;
-  bundlerStatus?: string;
-  createdAt?: number;
-  metadata?: {
-    source?: string;
-    destination?: string;
-    note?: string;
-    providerId?: string;
-  };
+  timestamp: number;
+};
+
+/** A single token balance entry from getAllBalances / getTokenBalance. */
+export type TokenBalance = {
+  symbol: string;
+  address: string;
+  balance: string;
+  isNative: boolean;
 };
 
 type WalletState = {
   walletAddress: string;
-  balancesJson: string;
+  network: string;
+  balances: TokenBalance[];
   transactions: WalletTransaction[];
   setWalletAddress: (address: string) => void;
-  setBalancesJson: (summary: string) => void;
+  setNetwork: (network: string) => void;
+  setBalances: (balances: TokenBalance[]) => void;
+  setBalancesJson: (json: string) => void; // kept for legacy callers
   setTransactions: (items: WalletTransaction[]) => void;
   clearWalletState: () => void;
 };
 
 const useWallet = create<WalletState>((set) => ({
   walletAddress: '',
-  balancesJson: '{}',
+  network: '',
+  balances: [],
   transactions: [],
   setWalletAddress: (walletAddress) => set({ walletAddress }),
-  setBalancesJson: (balancesJson) => set({ balancesJson }),
+  setNetwork: (network) => set({ network }),
+  setBalances: (balances) => set({ balances }),
+  setBalancesJson: (json) => {
+    try {
+      const balances = JSON.parse(json) as TokenBalance[];
+      set({ balances: Array.isArray(balances) ? balances : [] });
+    } catch {
+      set({ balances: [] });
+    }
+  },
   setTransactions: (transactions) => set({ transactions }),
   clearWalletState: () =>
     set({
       walletAddress: '',
-      balancesJson: '{}',
+      network: '',
+      balances: [],
       transactions: [],
     }),
 }));

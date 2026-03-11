@@ -101,11 +101,16 @@ describe('TransactionsScreen', () => {
   it('renders received transaction with correct direction label', async () => {
     const inboundTx = {
       hash: '0xabc',
-      token: 'USDC',
+      fromAddress: '0xSENDER',
+      toAddress: '0xTESTADDRESS',
+      tokenSymbol: 'USDC',
       amount: '5',
+      feeEth: '0.001',
+      network: 'ethereum-sepolia',
+      mode: 'eoa',
+      direction: 'credit',
       state: 'completed',
-      type: 'credit',
-      metadata: { source: '0xSENDER', destination: '0xTESTADDRESS' },
+      timestamp: 1700000000,
     };
     mockListAllTransactions.mockResolvedValue(JSON.stringify([inboundTx]));
 
@@ -122,11 +127,16 @@ describe('TransactionsScreen', () => {
   it('renders sent transaction with correct direction label', async () => {
     const outboundTx = {
       hash: '0xdef',
-      token: 'USDC',
+      fromAddress: '0xTESTADDRESS',
+      toAddress: '0xRECIPIENT',
+      tokenSymbol: 'USDC',
       amount: '2',
+      feeEth: '0.0005',
+      network: 'ethereum-sepolia',
+      mode: 'eoa',
+      direction: 'debit',
       state: 'completed',
-      type: 'debit',
-      metadata: { source: '0xTESTADDRESS', destination: '0xRECIPIENT' },
+      timestamp: 1700000001,
     };
     mockListAllTransactions.mockResolvedValue(JSON.stringify([outboundTx]));
 

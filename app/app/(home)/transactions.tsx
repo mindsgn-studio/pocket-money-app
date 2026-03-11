@@ -7,19 +7,16 @@ const DEFAULT_NETWORK: 'ethereum-mainnet' | 'ethereum-sepolia' = process.env.EXP
 
 type TxItem = {
   hash: string;
-  userOpHash?: string;
-  token: string;
+  fromAddress: string;
+  toAddress: string;
+  tokenSymbol: string;
   amount: string;
+  feeEth: string;
+  network: string;
+  mode: string;
+  direction: 'credit' | 'debit';
   state: string;
-  type?: string;
-  mode?: string;
-  sponsorshipMode?: string;
-  bundlerStatus?: string;
-  metadata?: {
-    source?: string;
-    destination?: string;
-    note?: string;
-  };
+  timestamp: number;
 };
 
 export default function App() {
@@ -45,31 +42,17 @@ export default function App() {
   const formatLifecycle = (item: TxItem): string => {
     if (item.state === 'completed') return 'Completed'
     if (item.state === 'failed') return 'Failed'
-    if (item.bundlerStatus === 'included') return 'Included onchain'
-    if (item.bundlerStatus === 'submitted') return 'Submitted to bundler'
-    return 'Pending'
+    if (item.state === 'pending') return 'Pending'
+    return item.state
   }
 
-  const fallbackHint = (item: TxItem): string => {
-    if (item.state === 'failed' && item.sponsorshipMode === 'sponsored') {
-      return 'Retry in AUTO or DIRECT mode if sponsorship is unavailable.'
-    }
-    if (item.state === 'failed' && item.mode === 'direct') {
-      return 'Check native gas balance on the owner wallet and retry.'
-    }
-    if (item.state === 'pending') {
-      return 'Still processing. Pull to refresh or check again in a few seconds.'
-    }
-    return 'No action required.'
-  }
-
-  useEffect(() => { 
+  useEffect(() => {
     const bootstrapWallet = async () => {
       const dataDir = new Directory(Paths.document);
-      const password = 'dev-password-change-me'
 
       try {
-        await PocketCore.initWalletSecure(dataDir.uri, password)
+        // initWalletSecure manages key material via iOS Keychain — no password arg
+        await PocketCore.initWalletSecure(dataDir.uri)
         const address = await PocketCore.openOrCreateWallet('Main Wallet')
         setWalletAddress(address)
         await refreshData()
@@ -104,15 +87,18 @@ export default function App() {
       {transactions.length === 0 ? <Text style={styles.value}>No transactions yet</Text> : null}
       {transactions.map((item, index) => (
         <View key={`${item.hash}-${index}`} style={styles.card} testID={`tx-item-${index}`}>
-          <Text style={[styles.row, styles.direction]}>{item.type === 'credit' ? '↓ Received' : '↑ Sent'} {item.token} {item.amount}</Text>
-          <Text style={styles.row}>Lifecycle: {formatLifecycle(item)}</Text>
-          <Text style={styles.row}>State: {item.state}</Text>
-          <Text style={styles.row}>Flow: {item.mode || 'direct'} / {item.sponsorshipMode || 'direct'}</Text>
-          <Text style={styles.row}>Bundler: {item.bundlerStatus || 'n/a'}</Text>
-          <Text style={styles.row}>Op: {item.userOpHash || item.hash}</Text>
-          <Text style={styles.row}>To: {item.metadata?.destination || 'n/a'}</Text>
-          <Text style={styles.row}>Note: {item.metadata?.note || '-'}</Text>
-          <Text style={styles.hint}>{fallbackHint(item)}</Text>
+          <Text style={[styles.row, styles.direction]}>
+            {item.direction === 'credit' ? '↓ Received' : '↑ Sent'} {item.tokenSymbol} {item.amount}
+          </Text>
+          <Text style={styles.row}>Status: {formatLifecycle(item)}</Text>
+          <Text style={styles.row}>Network: {item.network} / {item.mode}</Text>
+          <Text style={styles.row}>Fee: {item.feeEth} ETH</Text>
+          <Text style={styles.row}>From: {item.fromAddress}</Text>
+          <Text style={styles.row}>To: {item.toAddress}</Text>
+          <Text style={styles.row}>Hash: {item.hash}</Text>
+          <Text style={styles.row}>
+            {item.timestamp ? new Date(item.timestamp * 1000).toLocaleString() : ''}
+          </Text>
         </View>
       ))}
 
@@ -167,10 +153,6 @@ const styles = StyleSheet.create({
   },
   direction: {
     fontWeight: '600',
-  },
-  hint: {
-    fontSize: 11,
-    color: '#374151',
   },
   status: {
     marginTop: 12,

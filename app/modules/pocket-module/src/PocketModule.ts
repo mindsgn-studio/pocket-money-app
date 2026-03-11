@@ -1,28 +1,30 @@
 import { NativeModule, requireNativeModule } from 'expo';
 
-import { PocketApi, PocketNetwork, SendMode, TokenIdentifier } from './PocketModule.types';
+import { PocketApi, PocketNetwork, TokenIdentifier } from './PocketModule.types';
 
 declare class PocketModule extends NativeModule implements PocketApi {
-  initWallet(dataDir: string, password: string, masterKeyB64: string, kdfSaltB64: string): Promise<void>;
-  initWalletSecure(dataDir: string, password: string): Promise<void>;
+  initWallet(dataDir: string, masterKeyB64: string, kdfSaltB64: string): Promise<void>;
+  initWalletSecure(dataDir: string): Promise<void>;
   closeWallet(): Promise<void>;
+  registerNetwork(name: string, rpcURL: string, chainID: number): Promise<void>;
+  registerToken(network: string, identifier: string, symbol: string, address: string, decimals: number): Promise<void>;
   createEthereumWallet(name: string): Promise<string>;
   openOrCreateWallet(name: string): Promise<string>;
-  getBalance(network: PocketNetwork): Promise<string>;
-  getAccountSummary(network: string): Promise<string>;
-  getAccountSnapshot(network: PocketNetwork): Promise<string>;
+  getAddress(): Promise<string>;
   listAccounts(): Promise<string>;
-  sendUsdc(network: string, destination: string, amount: string, note: string, providerID: string): Promise<string>;
-  sendUsdcWithMode(network: string, destination: string, amount: string, note: string, providerID: string, sendMode: SendMode): Promise<string>;
-  sendToken(network: PocketNetwork, tokenIdentifier: TokenIdentifier, destination: string, amount: string, note: string, providerID: string): Promise<string>;
-  sendTokenWithMode(network: PocketNetwork, tokenIdentifier: TokenIdentifier, destination: string, amount: string, note: string, providerID: string, sendMode: SendMode): Promise<string>;
-  getUsdcTransactions(network: string, limit: number, offset: number): Promise<string>;
-  getTokenTransactions(network: PocketNetwork, tokenIdentifier: TokenIdentifier, limit: number, offset: number): Promise<string>;
-  listAllTransactions(network: PocketNetwork, limit: number, offset: number): Promise<string>;
-  exportBackup(passphrase: string): Promise<string>;
-  importBackup(payload: string, passphrase: string): Promise<string>;
-  sendMoneyTo(network: PocketNetwork, destination: string, amount: string): Promise<string>;
-  syncInboundTransactions(network: PocketNetwork): Promise<string>;
+  validateAddress(addr: string): Promise<string>;
+  signMessage(message: string): Promise<string>;
+  getTokenBalance(networkName: string, tokenIdentifier: string): Promise<string>;
+  getAllBalances(networkName: string): Promise<string>;
+  getPriceHistory(networkName: string, limit: number): Promise<string>;
+  addWatchedAddress(address: string, label: string): Promise<void>;
+  listWatchedAddresses(): Promise<string>;
+  sendToken(networkName: string, tokenIdentifier: string, recipient: string, amount: string): Promise<string>;
+  syncInboundTransactions(networkName: string): Promise<string>;
+  listTokenTransactions(networkName: string, tokenIdentifier: string, limit: number, offset: number): Promise<string>;
+  listAllTransactions(networkName: string, limit: number, offset: number): Promise<string>;
+  exportWalletBackup(passphrase: string): Promise<string>;
+  importWalletBackup(payload: string, passphrase: string): Promise<string>;
 }
 
 // This call loads the native module object from the JSI.

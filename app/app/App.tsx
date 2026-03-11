@@ -20,9 +20,6 @@ export default function App() {
   const [status, setStatus] = useState('Initializing...')
 
   const refreshData = useCallback(async () => {
-    const accountSummary = await PocketCore.getAccountSnapshot(DEFAULT_NETWORK)
-    setSummary(accountSummary)
-
     const tx = await PocketCore.listAllTransactions(DEFAULT_NETWORK, 20, 0)
     setTransactions(tx)
   }, [])
@@ -33,7 +30,7 @@ export default function App() {
       const password = 'dev-password-change-me'
 
       try {
-        await PocketCore.initWalletSecure(dataDir.uri, password)
+        await PocketCore.initWalletSecure(dataDir.uri)
         const address = await PocketCore.openOrCreateWallet('Main Wallet')
         setWalletAddress(address)
         await refreshData()
@@ -49,7 +46,7 @@ export default function App() {
   const onSendToken = async () => {
     try {
       setStatus(`Sending ${tokenIdentifier.toUpperCase()} (${sendMode})...`)
-      const result = await PocketCore.sendTokenWithMode(DEFAULT_NETWORK, tokenIdentifier, destination, amount, note, providerID, sendMode)
+      const result = await PocketCore.sendToken(DEFAULT_NETWORK, tokenIdentifier, destination, amount)
       setStatus(`Submitted: ${result}`)
       await refreshData()
     } catch (error) {
@@ -59,7 +56,7 @@ export default function App() {
 
   const onExportBackup = async () => {
     try {
-      const payload = await PocketCore.exportBackup(passphrase)
+      const payload = await PocketCore.exportWalletBackup(passphrase)
       setBackupPayload(payload)
       setStatus('Backup exported')
     } catch (error) {
@@ -69,7 +66,7 @@ export default function App() {
 
   const onImportBackup = async () => {
     try {
-      const result = await PocketCore.importBackup(backupPayload, passphrase)
+      const result = await PocketCore.importWalletBackup(backupPayload, passphrase)
       setStatus(`Import result: ${result}`)
       await refreshData()
     } catch (error) {
