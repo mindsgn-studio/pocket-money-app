@@ -9,7 +9,6 @@ export default function ActionCard() {
         <View testID="action-container">
           <Button
               label="SEND"
-              testID="action-send"
               onPress={() => {
                 router.push("/send")
               }}

@@ -46,8 +46,7 @@ export default function PasswordScreen() {
       
       try {
         await pocketBackend.saveWallet(walletAddress, DEFAULT_NETWORK)
-        await pocketBackend.listTransactions(walletAddress)
-        console.log("", "Successfully connected to backend with wallet:", walletAddress)
+        // await pocketBackend.listTransactions(walletAddress)
       } catch {
       }
 
