@@ -1,32 +1,15 @@
 import { StyleSheet, View } from 'react-native';
 import useWallet from '../store/wallet';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { FlashList } from "@shopify/flash-list";
 import EmptyTransactionCard from './empty-transaction-card';
 import TransactionCard from './transaction-card';
-import { pocketBackend } from '../lib/api/pocketBackend';
 import TransactionHeader from './transaction-header';
 import { WalletTransaction } from '../store/wallet';
 
 export default function TransactionList() {
-  const { transactions, walletAddress, setTransactions } = useWallet();
+  const { transactions } = useWallet();
 
-  useEffect(() => {
-    const bootstrap = async () => {
-      try {
-        const response = await pocketBackend.listTransactions(walletAddress);
-        const { transactions } = response
-        //@ts-expect-error unkown type error
-        const transactionList = transactions as WalletTransaction[];
-        setTransactions(transactionList)
-      } catch {
-        //get local sql
-      }
-    };
-
-    bootstrap();
-  }, [walletAddress, setTransactions]);
-  
   const usdcTransactions = useMemo(() => {
     return transactions.filter((tx: any) => tx.tokenSymbol === "USDC");
   }, [transactions]);

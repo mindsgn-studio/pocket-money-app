@@ -83,6 +83,8 @@ export type BackendTransaction = {
   txHash: string;
   fromAddress: string;
   toAddress: string;
+  description?: string;
+  tokenAddress?: string;
   tokenSymbol: string;
   amount: string;
   feeETH: string;
@@ -141,6 +143,23 @@ export const pocketBackend = {
     if (options?.offset != null) params.set('offset', String(options.offset));
     return callBackend<{ transactions: BackendTransaction[]; total: number; limit: number; offset: number }>(
       `/v1/transactions?${params.toString()}`,
+    );
+  },
+
+  /** Announce a newly submitted transaction so recipients get realtime updates. */
+  async announceTransaction(payload: {
+    txHash: string;
+    fromAddress: string;
+    toAddress: string;
+    tokenSymbol: string;
+    amount: string;
+    network: string;
+    tokenAddress?: string;
+    timestamp?: number;
+  }) {
+    return callBackend<{ txHash: string; network: string; timestamp: number; announced: boolean }>(
+      '/v1/transactions/announce',
+      { method: 'POST', body: payload },
     );
   },
 

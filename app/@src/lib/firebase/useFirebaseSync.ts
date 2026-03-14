@@ -1,0 +1,172 @@
+import { useEffect, useRef } from 'react';
+import { collection, onSnapshot, orderBy, query, where, limit } from 'firebase/firestore';
+import PocketCore from '@/modules/pocket-module';
+import useWallet, { TokenBalance, WalletTransaction } from '@/@src/store/wallet';
+import { DEFAULT_NETWORK, ensureWalletCoreReady } from '@/@src/lib/core/walletCore';
+import { getFirestoreDb } from './client';
+
+const TX_LIMIT = 50;
+
+function mapBalanceDoc(data: any): TokenBalance {
+  const tokenAddress = String(data.tokenAddress || '');
+  return {
+    symbol: String(data.tokenSymbol || ''),
+    address: tokenAddress,
+    balance: String(data.balance || '0'),
+    isNative: tokenAddress === '' || tokenAddress === 'native',
+    usdValue: String(data.usdValue || ''),
+    fetchedAt: Number(data.fetchedAt || 0),
+    network: String(data.network || ''),
+  };
+}
+
+function mapTxDoc(data: any): WalletTransaction {
+  const hash = String(data.txHash || data.hash || '');
+  return {
+    hash,
+    fromAddress: String(data.fromAddress || ''),
+    toAddress: String(data.toAddress || ''),
+    description: data.description ? String(data.description) : undefined,
+    tokenAddress: data.tokenAddress ? String(data.tokenAddress) : undefined,
+    tokenSymbol: String(data.tokenSymbol || ''),
+    amount: String(data.amount || '0'),
+    feeEth: String(data.feeEth || data.feeETH || ''),
+    feeUsd: data.feeUsd ? String(data.feeUsd) : (data.feeUSD ? String(data.feeUSD) : undefined),
+    usdAmount: data.usdAmount ? String(data.usdAmount) : undefined,
+    network: String(data.network || ''),
+    mode: 'backend',
+    direction: (data.direction === 'debit' ? 'debit' : 'credit'),
+    state: String(data.state || ''),
+    timestamp: Number(data.timestamp || 0),
+  };
+}
+
+export function mergeIncomingTransactions(existing: WalletTransaction[], added: WalletTransaction[]): WalletTransaction[] {
+  const seen = new Set(existing.map((tx) => tx.hash));
+  const next = [...existing];
+  for (const tx of added) {
+    if (!tx.hash || seen.has(tx.hash)) continue;
+    seen.add(tx.hash);
+    next.unshift(tx);
+  }
+  return next;
+}
+
+export function useFirebaseSync() {
+  const { walletAddress, network, setBalances, setTransactions } = useWallet();
+  const networkName = network || DEFAULT_NETWORK;
+  const seenTxHashes = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!walletAddress) return;
+    seenTxHashes.current = new Set();
+
+    const db = getFirestoreDb();
+    let unsubscribeBalances: (() => void) | null = null;
+    let unsubscribeTxs: (() => void) | null = null;
+
+    const bootstrap = async () => {
+      try {
+        await ensureWalletCoreReady();
+
+        // Seed balances from local DB
+        const cachedBalancesJson = await PocketCore.getLatestBalances(networkName);
+        const cachedBalances = JSON.parse(cachedBalancesJson) as Array<any>;
+        if (Array.isArray(cachedBalances)) {
+          const mapped = cachedBalances.map(mapBalanceDoc);
+          setBalances(mapped);
+        }
+
+        // Seed transactions from local DB (credit-only)
+        const cachedTxJson = await PocketCore.listAllTransactions(networkName, TX_LIMIT, 0);
+        const cachedTxs = JSON.parse(cachedTxJson) as Array<any>;
+        if (Array.isArray(cachedTxs)) {
+          const mapped = cachedTxs
+            .map(mapTxDoc)
+            .filter((tx) => tx.direction === 'credit');
+          mapped.forEach((tx) => {
+            if (tx.hash) seenTxHashes.current.add(tx.hash);
+          });
+          setTransactions(mapped);
+        }
+      } catch {
+        // ignore cache errors
+      }
+
+      if (!db) return;
+
+      const balancesQuery = query(
+        collection(db, 'wallets', walletAddress.toLowerCase(), 'balances'),
+        where('network', '==', networkName),
+      );
+      unsubscribeBalances = onSnapshot(balancesQuery, async (snapshot) => {
+        const balances = snapshot.docs.map((docSnap) => mapBalanceDoc(docSnap.data()));
+        setBalances(balances);
+        try {
+          await PocketCore.upsertBalanceSnapshots(JSON.stringify(balances.map((b) => ({
+            walletAddress: walletAddress.toLowerCase(),
+            tokenAddress: b.address,
+            tokenSymbol: b.symbol,
+            balance: b.balance,
+            usdValue: b.usdValue ?? '',
+            network: b.network ?? networkName,
+            fetchedAt: b.fetchedAt ?? 0,
+          }))));
+        } catch {
+          // ignore local save errors
+        }
+      });
+
+      const txQuery = query(
+        collection(db, 'wallets', walletAddress.toLowerCase(), 'transactions'),
+        where('direction', '==', 'credit'),
+        orderBy('timestamp', 'desc'),
+        limit(TX_LIMIT),
+      );
+      unsubscribeTxs = onSnapshot(txQuery, async (snapshot) => {
+        const added = snapshot.docChanges()
+          .filter((change) => change.type === 'added')
+          .map((change) => mapTxDoc(change.doc.data()))
+          .filter((tx) => tx.direction === 'credit');
+
+        if (added.length === 0) return;
+        const newOnes = added.filter((tx) => tx.hash && !seenTxHashes.current.has(tx.hash));
+        newOnes.forEach((tx) => seenTxHashes.current.add(tx.hash));
+        if (newOnes.length === 0) return;
+
+        const current = useWallet.getState().transactions;
+        setTransactions(mergeIncomingTransactions(current, newOnes));
+
+        try {
+          await PocketCore.upsertTransactions(JSON.stringify(newOnes.map((tx) => ({
+            walletAddress: walletAddress.toLowerCase(),
+            txHash: tx.hash,
+            fromAddress: tx.fromAddress,
+            toAddress: tx.toAddress,
+            description: tx.description ?? '',
+            tokenAddress: tx.tokenAddress ?? '',
+            tokenSymbol: tx.tokenSymbol,
+            amount: tx.amount,
+            feeEth: tx.feeEth,
+            feeUsd: tx.feeUsd ?? '',
+            usdAmount: tx.usdAmount ?? '',
+            network: tx.network ?? networkName,
+            direction: tx.direction,
+            state: tx.state,
+            blockNumber: 0,
+            timestamp: tx.timestamp,
+          }))));
+        } catch {
+          // ignore local save errors
+        }
+      });
+    };
+
+    bootstrap();
+
+    return () => {
+      unsubscribeBalances?.();
+      unsubscribeTxs?.();
+    };
+  }, [walletAddress, networkName, setBalances, setTransactions]);
+}
