@@ -5,6 +5,8 @@ export type WalletTransaction = {
   hash: string;
   fromAddress: string;
   toAddress: string;
+  description?: string;
+  tokenAddress?: string;
   tokenSymbol: string;
   amount: string;
   feeEth: string;

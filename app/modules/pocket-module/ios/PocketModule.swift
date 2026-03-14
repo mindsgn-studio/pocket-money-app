@@ -138,6 +138,12 @@ public final class PocketModule: Module {
       }
     }
 
+    AsyncFunction("upsertBalanceSnapshots") { (jsonPayload: String) throws in
+      try self.callVoid { core in
+        try core.upsertBalanceSnapshots(jsonPayload)
+      }
+    }
+
     AsyncFunction("getPriceHistory") { (networkName: String, limit: Int) throws -> String in
       try self.callString { core, err in
         core.getPriceHistory(networkName, limit: limit, error: &err)
@@ -203,6 +209,12 @@ public final class PocketModule: Module {
     AsyncFunction("listAllTransactions") { (networkName: String, limit: Int, offset: Int) throws -> String in
       try self.callString { core, err in
         core.listAllTransactions(networkName, limit: limit, offset: offset, error: &err)
+      }
+    }
+
+    AsyncFunction("upsertTransactions") { (jsonPayload: String) throws in
+      try self.callVoid { core in
+        try core.upsertTransactions(jsonPayload)
       }
     }
 

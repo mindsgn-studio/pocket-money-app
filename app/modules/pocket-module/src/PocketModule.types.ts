@@ -29,6 +29,7 @@ export type PocketApi = {
   getAllBalances(networkName: string): Promise<string>;
   syncBalances(networkName: string): Promise<string>;
   getLatestBalances(networkName: string): Promise<string>;
+  upsertBalanceSnapshots(jsonPayload: string): Promise<void>;
 
   // Price history
   getPriceHistory(networkName: string, limit: number): Promise<string>;
@@ -49,6 +50,7 @@ export type PocketApi = {
   syncInboundTransactions(networkName: string): Promise<string>;
   listTokenTransactions(networkName: string, tokenIdentifier: string, limit: number, offset: number): Promise<string>;
   listAllTransactions(networkName: string, limit: number, offset: number): Promise<string>;
+  upsertTransactions(jsonPayload: string): Promise<void>;
 
   // Backup
   exportWalletBackup(passphrase: string): Promise<string>;

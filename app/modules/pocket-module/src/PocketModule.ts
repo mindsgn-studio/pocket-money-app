@@ -19,6 +19,7 @@ declare class PocketModule extends NativeModule implements PocketApi {
   getAllBalances(networkName: string): Promise<string>;
   syncBalances(networkName: string): Promise<string>;
   getLatestBalances(networkName: string): Promise<string>;
+  upsertBalanceSnapshots(jsonPayload: string): Promise<void>;
   getPriceHistory(networkName: string, limit: number): Promise<string>;
   upsertFXRate(pair: string, rate: string, fetchedAt: number): Promise<void>;
   latestFXRate(pair: string): Promise<string>;
@@ -29,6 +30,7 @@ declare class PocketModule extends NativeModule implements PocketApi {
   syncInboundTransactions(networkName: string): Promise<string>;
   listTokenTransactions(networkName: string, tokenIdentifier: string, limit: number, offset: number): Promise<string>;
   listAllTransactions(networkName: string, limit: number, offset: number): Promise<string>;
+  upsertTransactions(jsonPayload: string): Promise<void>;
   exportWalletBackup(passphrase: string): Promise<string>;
   importWalletBackup(payload: string, passphrase: string): Promise<string>;
 }

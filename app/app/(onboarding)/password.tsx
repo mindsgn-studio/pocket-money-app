@@ -50,8 +50,9 @@ export default function PasswordScreen() {
       } catch {
       }
 
+
+
       setWalletAddress(walletAddress);
-      
       setNetwork(DEFAULT_NETWORK);
       router.replace('/(home)');
     } catch (error) {
